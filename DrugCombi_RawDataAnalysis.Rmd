@@ -1,7 +1,7 @@
 ---
-title: "DrugCombination - Raw Data"
+title: "CLL drug combinations ex-vivo: Data import and pre-processing"
 author: "Britta Velten"
-date: "12 July 2016"
+date: "30 August 2018"
 output:
   BiocStyle::html_document:
     toc: true
@@ -17,15 +17,18 @@ knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 ```
 
 ```{r}
+library(tidyverse)
+library(magrittr)
 library(xlsx)
 library(dplyr)
+options(stringsAsFactors = FALSE)
 ```
 
 
 ```{r}
-today<-"090816"
-setwd("~/Documents/cll/MarinaDrugComb/")
-datadir<-"~/Documents/cll/MarinaDrugComb/rawData"
+today <- "180830"
+setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 ```
 
 
@@ -38,37 +41,38 @@ On 15-06-16 received raw data from Marina, containing 154 excel files with name 
 - screening date "yyyy-mm-dd"
 - screen number "SSx"
 - patient number "Pxxxx"
-- combination drug "drugname"
+- combination drug "drugname" (screens 1+2 have one combination drug, others two)
 
 Additionally there are two files containing information about plates (different for 1-2 and 3-12), i.e. which drug in which concentration goes in which well. The drugs in the different wells are referred to as "base drug" or drugB in the following, the plate-wise drug as "combination drug" or "drugC".
 
+```{r}
+file4screen12 <- "2013-11-18_EMBL_plate_info_Screen 1-2.xlsx"
+file4screenRest <- "2013-11-18_EMBL_plate_info_Screen 3-6.xlsx"
+```
+
 And for each screen 1-12 viability data from day 0 (name differs between files, all end in "d0").
 
-
-
-## Plate Info
+## Read out information base drugs
 ```{r}
-file4screen12<-"2013-11-18_EMBL_plate_info_Screen 1-2.xlsx"
-file4screenRest<-"2013-11-18_EMBL_plate_info_Screen 3-6.xlsx"
+# Read in entire files containg set-up table and information on base drugs
+screen12PlateInfo <- read.xlsx(file.path(datadir,"PlateInfo",file4screen12),1)
+screenRestPlateInfo <- read.xlsx(file.path(datadir,"PlateInfo",file4screenRest),1)
 
-screen12PlateInfo<-read.xlsx(file.path(datadir,"PlateInfo",file4screen12),1)
-screenRestPlateInfo<-read.xlsx(file.path(datadir,"PlateInfo",file4screenRest),1)
+# Extract meta-Data on base drugs
+DrugInfo12 <- screen12PlateInfo[!apply(screen12PlateInfo,1,function(r) all(is.na(r))),1:9]
+DrugInfoRest <- screenRestPlateInfo[!apply(screenRestPlateInfo,1,function(r) all(is.na(r))),1:9]
 
-#Meta-Data on drugs
-DrugInfo12<-screen12PlateInfo[!apply(screen12PlateInfo,1,function(r) all(is.na(r))),1:9]
-DrugInfoRest<-screenRestPlateInfo[!apply(screenRestPlateInfo,1,function(r) all(is.na(r))),1:9]
-
+# check that drug infromation is the same between the two setups
 all(DrugInfo12==DrugInfoRest, na.rm=T)
 is.na(DrugInfo12[is.na(DrugInfoRest)])
 is.na(DrugInfoRest[is.na(DrugInfo12)])
 
-
 #Same drug meta data for all plates
-DrugInfo<-DrugInfo12
-DrugInfo$Substance<-as.character(DrugInfo$Substance)
+DrugInfoBase <- DrugInfo12
+DrugInfoBase$Substance <- as.character(DrugInfoBase$Substance)
 rm(DrugInfoRest, DrugInfo12)
 
-#turn into same labels for drug as always
+#turn into labels for drug in the fromat DXXX
 num2id = function(nums) { 
   sapply(nums, function(num) {
     if(is.na(num) | is.null(num) | nchar(num)>3) NA
@@ -77,17 +81,18 @@ num2id = function(nums) {
   else paste0("D",paste(rep("0", 3-nchar(num)), collapse=""),num)
   })
 }
+DrugInfoBase[,1] <- num2id(as.vector(DrugInfoBase[,1]))
 
-DrugInfo[,1]<-num2id(as.vector(DrugInfo[,1]))
-DrugBase<-DrugInfo
+# complete list of drugs with names and ids (from Gosia)
+load("../Analysis/DrugMetaData.RData")
+DrugInfoAll <- drugs
+rm(drugs)
+```
 
-#complete list of drugs with name, id and synonyms taken from Gosia
-load("DrugMetaData.RData") 
-rownames(drugs)[nrow(drugs)]<-"DM"
-DrugAll<-drugs
-
-#Plate set-up
-getPlateSetUp<-function(file){
+## Read out information on plate setup
+```{r}
+# get plate set-up (different for screen 1-2 and others)
+getPlateSetUp <- function(file){
   tableIdx<-which(file=="A", arr.ind = T)
   SetUp<-file[tableIdx[1]+0:15,tableIdx[2]+1:24]
   namesCol<-file[tableIdx[1]-2,tableIdx[2]+1:24]
@@ -101,160 +106,206 @@ getPlateSetUp<-function(file){
   return(SetUp)
 }
 
-SetUp12<-getPlateSetUp(screen12PlateInfo)
-SetUpRest<-getPlateSetUp(screenRestPlateInfo)
+SetUp12 <- getPlateSetUp(screen12PlateInfo)
+SetUpRest <- getPlateSetUp(screenRestPlateInfo)
 ```
 
 Above code creates three data objects:
 
-- 'DrugInfo' containing meta-data about drugs (concentrations corresponding to c1 to c5, name, target, dilution factor)
+- 'DrugInfoBase' containing meta-data about drugs (concentrations corresponding to c1 to c5, name, target, dilution factor)
 - 'SetUp12' and 'SetUpRest' containing the plate information, i.e. which drug in which concentration in which well
 
 
-##Screens
+## Read in results per plate
 Read in the raw values from the excel files matching them to the corresponding drug combination by using the infromation from the SetUp objects and the filename.
 
 The raw values are then normalized by using the median value of the DM wells on the corresponding plate.
 ```{r}
-allFiles<-list.files(file.path(datadir,"Results"),"*.xlsx")
-SSIP_fileID<-grep("SS-IP", allFiles)
-allFileswoSSIP<-allFiles[-SSIP_fileID]
-FilesSSIP<-allFiles[SSIP_fileID]
+# list the files containing results from all screens
+allFiles <- list.files(file.path(datadir,"Results"),"*.xlsx")
 
+# exclude IP screen (in-vivo ibrutinib treatments)
+SSIP_fileID <- grep("SS-IP", allFiles)
+allFileswoSSIP <- allFiles[-SSIP_fileID]
+FilesSSIP <- allFiles[SSIP_fileID]
 
-importRawData<-function(filename, SetUp12, SetUpRest){
+# function to import the raw result values on each plate
+importRawData <- function(filename, SetUp12, SetUpRest){
   print(filename)
-  data<-read.xlsx(file.path(datadir,"Results",filename),1)
+  data <- read.xlsx(file.path(datadir,"Results",filename),1)
   
-  #info from filename
+  # info from filename
   NameComp<-strsplit(filename, "_")[[1]]
   ScreenDate <- NameComp[1]
   ScreenNo <- NameComp[2]
   PatientID <- NameComp[3] 
-  CombiDrug <- NameComp[4] 
-  #Note for SS-IP this is the sample number, treat differntly
+  CombiDrug <- NameComp[4] # this can be a single drug name (SS1-2) or a combiantion of two A-B (others)
+  #Note for SS-IP this is the sample number, treat differently
   CombiDrug <- sub(".xlsx","", CombiDrug)
   
-  #Plate ID
+  # Plate ID, time and temperature
   PlateDate <- data[which(data=="Date:", arr.ind = T)+c(0,1)]
   PlateTime <- data[which(data=="Time:", arr.ind = T)+c(0,1)]
-  PlateTemperature<-data[which(data=="Temperature:", arr.ind = T)+c(0,1)]
+  PlateTemperature <- data[which(data=="Temperature:", arr.ind = T)+c(0,1)]
 
-
-  
-  #table from excel file (ignore meta data about screen)
-  tableIdx<-which(data=="A", arr.ind = T)
+  # raw intensity values from table in excel file
+  tableIdx <- which(data=="A", arr.ind = T)
   stopifnot(nrow(tableIdx)==1)
-  PlateValues<-data[tableIdx[1]+0:15,tableIdx[2]+1:24]
-  colnames(PlateValues)<-1:24
-  rownames(PlateValues)<-letters[1:16]
+  PlateValues <- data[tableIdx[1]+0:15,tableIdx[2]+1:24]
+  colnames(PlateValues) <- 1:24
+  rownames(PlateValues) <- letters[1:16]
   
-  #data.frame match with corresponding plate set up
-  value<-as.numeric(as.vector(as.matrix(PlateValues)))
+  # data.frame match with corresponding plate set up
+  PlateValues <- rownames_to_column(PlateValues, var = "WellLetter")
+  PlateValues <- gather(PlateValues, key="WellNo", value="rawValue", -WellLetter)
+  PlateValues$WellNo <- as.numeric(PlateValues$WellNo)
+  PlateValues$rawValue <- as.numeric(PlateValues$rawValue)
+  
+  # choose setup info based on screen number
+  if(ScreenNo %in% c("SS1", "SS2")) {
+    SetUp <- SetUp12 
+  } else SetUp <- SetUpRest
+  SetUp$letter <- as.character(SetUp$letter)
+  
+  # add well information from setup
+  jointdf <- left_join(PlateValues, SetUp, by=c("WellLetter"="letter", "WellNo"="idx.col"))
+  
+  #rename drug to drug columns to base drug columns
+  jointdf <- rename(jointdf, BaseDrugID = drug)
+  jointdf <- rename(jointdf, concBaseDrug = conc)
 
-  if(ScreenNo %in% c("SS1", "SS2")) {SetUp<-SetUp12 
-  } else SetUp<-SetUpRest
-  
-  WellNo<-SetUp$idx.col
-  WellLetter<-SetUp$letter
-  IDBaseDrug<-SetUp$drug
-  concBaseDrug<-SetUp$conc
-  
-  if(ScreenNo %in% c("SS1", "SS2")) {CombiDrug<-rep(CombiDrug, length(value))
+  # combi drug depends on plate aera for all screens except 1-2
+  if(ScreenNo %in% c("SS1", "SS2")) {
+    jointdf$CombiDrug <- CombiDrug
   } else  {
-    CombiDrugComp<-strsplit(CombiDrug, "-")[[1]]
-    CombiDrug<-sapply(SetUp$letter, 
-                          function(x) ifelse(x %in% letters[1:8], CombiDrugComp[1],CombiDrugComp[2] ))
-  }
-  
-  #pure DMSO for normalization
-  CombiDrug[IDBaseDrug=="DM"]<-NA
-  pureDMSOMedian<-median(value[IDBaseDrug=="DM"])
-  normalizedValue<-value/pureDMSOMedian
-  
-  df<-data.frame(CombiDrug=as.character(CombiDrug),
-           IDBaseDrug=IDBaseDrug,
-           concBaseDrug=concBaseDrug,
-           rawValue=value, 
-           pureDMSOMedian=rep(pureDMSOMedian, length(value)),
-           normalizedValue=normalizedValue,
-           ScreenNo=rep(ScreenNo, length(value)), 
-           ScreenDate=rep(ScreenDate, length(value)), 
-           PatientID=rep(PatientID, length(value)),
-           WellNo=WellNo,
-           WellLetter=WellLetter,
-           PlateDate=rep(PlateDate, length(value)), 
-           PlateTime=rep(PlateTime, length(value))
-           )
+    CombiDrugComp <- strsplit(CombiDrug, "-")[[1]]
+    jointdf %<>% mutate(CombiDrug = ifelse(WellLetter %in% letters[1:8], CombiDrugComp[1],CombiDrugComp[2])) 
   }
 
-#make dataframe from info in all files
-listOfTables<-lapply(allFileswoSSIP, function(file) importRawData(file, SetUp12, SetUpRest))
-for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID<-sprintf("PL%03d", l)
-CompleteDF<-do.call(rbind,listOfTables)
+  # "DM" in IDBaseDrugs signifies that no drug was added, set CombiDrug to NA, "DM+" means DMSO plus CombiDrug
+  jointdf %<>% mutate(CombiDrug = ifelse(BaseDrugID=="DM", NA, CombiDrug))
 
+  # calculate median of plate DMSO wells
+  jointdf$pureDMSOMedian <- median(filter(jointdf, BaseDrugID=="DM")$rawValue)
+
+  #Normalize values by the median of pure DMSO values
+  jointdf %<>% mutate(normalizedValue = rawValue/pureDMSOMedian)
+  
+  # Add plate and screen info
+  jointdf %<>% mutate(ScreenNo = ScreenNo,
+                      ScreenDate = ScreenDate,
+                      PlateTime = PlateTime,
+                      PatientID = PatientID,
+                      PlateDate = PlateDate
+                      )
+  # remove unnecessary columns
+  jointdf %<>% select(-idx.row)
+  return(jointdf)
+  }
+
+# construct dataframe from each file using the importRawData function 
+listOfTables <- lapply(allFileswoSSIP, function(file) importRawData(file, SetUp12 = SetUp12, SetUpRest = SetUpRest))
+
+# add a plate ID 
+for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("PL%03d", l)
+
+# combine all plates into one dataframe
+CompleteDF <- do.call(rbind,listOfTables)
+
+# sanity check
 stopifnot(nrow(CompleteDF)==24*16*length(allFileswoSSIP))
+```
 
-#add true concentrations for BaseDrugs
-ConcValueBaseDrug<-rep(NA, nrow(CompleteDF))
-for(i in 1: nrow(CompleteDF) ){
-  concID<-grep(CompleteDF$concBaseDrug[i],colnames(DrugInfo))
-  drugID<-CompleteDF$IDBaseDrug[i]
-  if(is.na(concID) | !drugID %in% DrugInfo$No) ConcValueBaseDrug[i]<-NA 
-  else ConcValueBaseDrug[i]<-DrugInfo[DrugInfo$No==drugID,concID]
-}
-CompleteDF<-data.frame(CompleteDF, ConcValueBaseDrug=ConcValueBaseDrug)
-#without DMSO plates (contained in effect basedrug alone)
+Add additional information on base drugs:
+```{r}
+# add true concentration values for base drugs based on the metadata in DrugInfoBase
+ConcValueBaseDrug <- sapply(1:nrow(CompleteDF), function(i) {
+  concID <- grep(CompleteDF$concBaseDrug[i],colnames(DrugInfoBase))
+  drugID <- CompleteDF$BaseDrugID[i]
+  if(is.na(concID) | !drugID %in% DrugInfoBase$No)  return(NA)
+  else return(DrugInfoBase[DrugInfoBase$No==drugID,concID])
+})
+CompleteDF$ConcValueBaseDrug <- ConcValueBaseDrug
+CompleteDF <- left_join(CompleteDF, select(DrugInfoBase, Substance, No), by = c("BaseDrugID"="No" ))
+CompleteDF %<>% rename(BaseDrugName = Substance)
+CompleteDF %<>%  rename(BaseDrugConc = ConcValueBaseDrug)
+CompleteDF %<>%  rename(BaseDrugConcID = concBaseDrug)
+CompleteDF %<>%  rename(BaseDrugID = BaseDrugID)
+CompleteDF %<>% mutate(BaseDrugName = ifelse(BaseDrugID == "DM+"|BaseDrugID == "DM", "DMSO", BaseDrugName))
+```
 
-#add ID and concentration of CombiDrug
-CombiDrugs<-as.character(unique(CompleteDF$CombiDrug))[!is.na(as.character(unique(CompleteDF$CombiDrug)))]
-infoCombiDrugs<-data.frame(abrv=CombiDrugs, 
-                           name=c("DMSO", "Ibrutinib","Ibrutinib",
+Add additional information on combination drugs:
+```{r}
+unique(CompleteDF$CombiDrug)
+#AVL and AVl292 are the same substance, rename:
+CompleteDF %<>% mutate(CombiDrug = ifelse(CombiDrug=="AVL", "AVL292", CombiDrug))
+
+# construct df containing info on all combination compounds (constructed manually)
+CombiDrugs <- unique(CompleteDF$CombiDrug)
+CombiDrugs <- CombiDrugs[!is.na(CombiDrugs)]
+DrugInfoCombi <- data.frame(abrv=CombiDrugs, 
+                            name=c("DMSO", "Ibrutinib","Ibrutinib",
                                   "AVL", "CAL-101", "R406", "Fludarabine",
                                   "IPI-145", "LGX", "YM155", "Abt-199", "Pomalidomide", "Afatinib",
-                                  "AVL", "Everolimus"),
-                           conc=c(NA, 0.1, 1, 1,1,1, NA, NA, 1, 0.01, 0.005,1,1, 1,NA)
+                                  "Everolimus"),
+                            conc=c(NA, 0.1, 1, 1,1,1, NA, NA, 1, 0.01, 0.005,1,1,NA) # info taken from "Versuche-Patienten-Drugs.xlsx",
 )
+DrugInfoCombi$id <- sapply(DrugInfoCombi$name, function(n) rownames(DrugInfoAll)[which(DrugInfoAll$SimpleName==n|DrugInfoAll$Substance==n)])
+DrugInfoCombi %<>% mutate(id =ifelse(id == "D0DM", "DM", id))
 
-infoCombiDrugs$id<-sapply(infoCombiDrugs$name, function(n) rownames(drugs)[which(drugs$SimpleName==n|drugs$Substance==n)])
+# add additional info on drugs
+library(BloodCancerMultiOmics2017)
+data("drugs")
+drugs <- rename(drugs, long_name=name)
+DrugInfoCombi <-cbind(DrugInfoCombi, drugs[paste0("D_",substr(DrugInfoCombi$id, 2,4)) ,])
+DrugInfoCombi %<>% mutate(long_name = ifelse(name=="DMSO", "DMSO", long_name))
+rm(drugs)
 
 #check right match
-#AVL and AVl292 are the samesubstance?
-print(infoCombiDrugs)
+DrugInfoCombi
 
-CompleteDF$CombiDrugName<-rep(NA, nrow(CompleteDF))
-CompleteDF$CombiDrugConc<-rep(NA, nrow(CompleteDF))
-CompleteDF$CombiDrugID<-rep(NA, nrow(CompleteDF))
-
-for(cd in CombiDrugs){
-CompleteDF$CombiDrugName[CompleteDF$CombiDrug==cd]<-as.character(infoCombiDrugs$name[infoCombiDrugs$abrv==cd])
-CompleteDF$CombiDrugConc[CompleteDF$CombiDrug==cd]<-infoCombiDrugs$conc[infoCombiDrugs$abrv==cd]
-CompleteDF$CombiDrugID[CompleteDF$CombiDrug==cd]<-infoCombiDrugs$id[infoCombiDrugs$abrv==cd]
-}
+# add info to dataframe
+CompleteDF <- left_join(CompleteDF, select(DrugInfoCombi, name, conc, id, long_name, abrv), by = c("CombiDrug" = "abrv"))
+CompleteDF <- rename(CompleteDF, CombiDrugName = name, 
+                     CombiDrugConc = conc,
+                     CombiDrugID = id,
+                     CombiDrug_longname = long_name)
 ```
 
 
 * not used so far: d0 tables, SS-IP screen
 
+Remove control wells from table (used only for normalization) (DM wells) (keep DM+ wells, which are DMSO as base compound but with a non-DMSO combi compound)
+```{r}
+CompleteDFwoControl<-CompleteDF[CompleteDF$BaseDrugID!="DM",]
+```
 
 ## Data Overview
 
-* 15 combintation partners (one of them DMSO, Ibrutinib counted twice, AVL=AVL292 --> 12 different compounds)
-* 54 patients ( 52 after removing the patients of screen 1 )
-* 33 base drugs (one of them DM+)
+```{r}
+# combination partners
+length(unique(CompleteDFwoControl$CombiDrug_longname))
+unique(CompleteDFwoControl$CombiDrug_longname)
+
+# number of samples
+length(unique(CompleteDFwoControl$PatientID))
+
+# numbmer of base compounds
+length(unique(CompleteDFwoControl$BaseDrugID))
+unique(CompleteDFwoControl$BaseDrugName)
+```
+
+* 13 combintation partners (incl DMSO), two concentrations for ibrutinib, others only one
+* 54 patients (52 after removing the patients of screen 1)
+* 33 base drugs (incl. DMSO)
+
 
 ```{r}
-CompleteDFwoControl<-CompleteDF[CompleteDF$IDBaseDrug!="DM",]
-
-CombiPartners<-as.character(unique(CompleteDFwoControl$CombiDrug))
-NoCombiPartners<-length(CombiPartners)
-NoPatients<-length(unique(CompleteDFwoControl$PatientID))
-NoBaseDrugs<-length(unique(CompleteDFwoControl$IDBaseDrug))
-
-FirstTable<-CompleteDFwoControl
-FirstTable<-FirstTable[order(FirstTable$CombiDrug),
-                       c("CombiDrug", "CombiDrugName", "CombiDrugConc","CombiDrugID",
-                         "IDBaseDrug", "ConcValueBaseDrug", "concBaseDrug", 
+# columns re-ordering
+FirstTable <- CompleteDFwoControl
+FirstTable <- FirstTable[order(FirstTable$CombiDrug),
+                       c("CombiDrug", "CombiDrugName", "CombiDrugConc","CombiDrugID", "CombiDrug_longname",
+                         "BaseDrugName", "BaseDrugID", "BaseDrugConc", "BaseDrugConcID", 
                          "PatientID", "PlateID","WellNo","WellLetter",
                          "normalizedValue", "rawValue",
                          "pureDMSOMedian","ScreenNo", "ScreenDate",
@@ -263,118 +314,89 @@ head(FirstTable)
 ```
 
 
-
+# Re-structure to obtain combination and single agent effects
 Re-structure data frame to obtain table with combined effect and single effect for each patient and substance combination. As combined effect use the normalized viability value of the well of drug B on the plate with drug C. The effectB is given by the well of drug B on the DMSO plate and the effectC is given by the median of the DM+ wells on the plate with drug C.
 ```{r}
-head(FirstTable)
-
 #seperate drug-drug combi, negative control for BaseDrug (DMSO plate) and for CombiDrug(DMplus)
-DMSOtable<-FirstTable[FirstTable$CombiDrug=="DMSO" &FirstTable$IDBaseDrug!="DM+",]
-DMplustable<-FirstTable[FirstTable$IDBaseDrug=="DM+"& FirstTable$CombiDrug!="DMSO",]
-DMplusDMSO<-FirstTable[FirstTable$CombiDrug=="DMSO" &FirstTable$IDBaseDrug=="DM+",]
-drugstable<-FirstTable[FirstTable$IDBaseDrug!="DM+" & FirstTable$CombiDrug!="DMSO", ]
+DMSOtable <- filter(FirstTable, CombiDrug=="DMSO", BaseDrugID!="DM+")  # DMSO as combination partner, but non-DMSO base compound (--> effectB)
+DMplustable <- filter(FirstTable, BaseDrugID=="DM+", CombiDrug!="DMSO")  # DMSO as base compound , but non-DMSO combination compound (--> effectC)
+drugstable <- filter(FirstTable, BaseDrugID!="DM+", CombiDrug!="DMSO") # non-DMSO as base compound and as combination compound (--> effectBC)
 
-#match combi well with DMSO well and DM+ wells
-mergedTable<-data.frame()
-for( i in 1:nrow(drugstable)){
-  dd<-drugstable[i,]
-  
-  #for DM+ control need same plate ID (screen rest) but also correct upper/lower half for screen 1,2 (to have same CombiDrug)
-  DMplusidx<-which(DMplustable$CombiDrug== dd$CombiDrug & DMplustable$PatientID== dd$PatientID &
-                     DMplustable$PlateID==dd$PlateID)
-  
-  #take medians over all DM+ well from one plate and combiSubstance
-  check<-subset(DMplustable[DMplusidx,],select=-c(rawValue, normalizedValue, WellNo, WellLetter))
-  stopifnot(sum(!duplicated(check))==1)
-  DMplusrow<-check[1,]
-  DMplusrow$rawValue <- median(DMplustable[DMplusidx, "rawValue"])
-  DMplusrow$normalizedValue <- median(DMplustable[DMplusidx, "normalizedValue"])
+#### add effect of combination drug along to drugstable ###
+# same combi drug (id/conc), patient ID, screen and plate
+matchingCols <- c("CombiDrug","CombiDrugID","CombiDrugName","CombiDrugConc","CombiDrug_longname",
+                  "PatientID", "PlateID", "ScreenNo", "PlateDate", "PlateTime")
+#several DMSO wells combined with combi compound: use median 
+DMplustable_medians <- DMplustable %>%
+  group_by_at(matchingCols) %>%
+  summarize(effectC = median(normalizedValue))
+mergedTable <- left_join(drugstable, select(DMplustable_medians, matchingCols, effectC), by = matchingCols)                    
+mergedTable %<>% rename(effectBC= normalizedValue)
 
-  
-  
-  #for DMSO control need weel with same base drug in same conc for same patient in same screen
-  #in screen 1-2 same well position on different plate
-  #in rest either same well position or 8 rows below/above
-  if(dd$ScreenNo %in% c("SS1", "SS2")){
-   stopifnot(length(DMplusidx)==32)
-   DMSOidx<-which(DMSOtable$IDBaseDrug== dd$IDBaseDrug 
-                  & DMSOtable$concBaseDrug== dd$concBaseDrug
-                  & DMSOtable$PatientID== dd$PatientID
-                  & DMSOtable$WellNo==dd$WellNo
-                  & DMSOtable$WellLetter==dd$WellLetter
-                  &DMSOtable$ScreenNo==dd$ScreenNo)
-  stopifnot(length(DMSOidx)==1)
- } else {
-      stopifnot(length(DMplusidx)==16)
-      letteridx<-which(letters==dd$WellLetter)
-      if(letteridx>8) letter<-c(letters[letteridx],letters[letteridx-8]) 
-      else letter<-c(letters[letteridx], letters[letteridx+8])
-      DMSOidx<-which(DMSOtable$IDBaseDrug== dd$IDBaseDrug 
-                  & DMSOtable$concBaseDrug== dd$concBaseDrug
-                  & DMSOtable$PatientID== dd$PatientID
-                  & DMSOtable$WellNo==dd$WellNo
-                  & DMSOtable$WellLetter %in% letter
-                  &DMSOtable$ScreenNo==dd$ScreenNo)
-  stopifnot(length(DMSOidx)==1)
- }
-  
-DMSOrow<-   DMSOtable[DMSOidx,]
-
-#add control+combi and base+control to  dataframe
-add<-cbind(dd, normValueBaseDrugOnly=DMSOrow$normalizedValue,
-           MediannormValueCombiDurgOnly= DMplusrow$normalizedValue) 
-mergedTable<-rbind(mergedTable, add)
-}
+### add effect of base drug along to drugstable ###
+# same base drug (id/conc), patient ID and screen, but can be on different plates (1-2 Cdrugs per plate),
+# for screen 1 and 2 need to also add well info to match replicates, 
+# later screen will have same letter modulo 8 but are determined by the combiDrug and PatientID
+matchingCols <- c("BaseDrugName","BaseDrugID","BaseDrugConc","BaseDrugConcID", "PatientID", "ScreenDate", "ScreenNo", "repMatchLetter")
+DMSOtable %<>% rename(effectB = normalizedValue) 
+DMSOtable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"), paste(WellLetter, WellNo, sep="_"), NA))
+mergedTable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"),  paste(WellLetter, WellNo, sep="_"), NA))
+mergedTable <- left_join(mergedTable, select(DMSOtable, matchingCols, effectB), by = matchingCols)                    
 
 head(mergedTable)
-
-#make nice names and struture
-mergedTable$BDrugName<-sapply(mergedTable$IDBaseDrug, function(x) DrugInfo$Substance[DrugInfo$No==x])
-
-df4ana<-data.frame(CDrugAbrv=mergedTable$CombiDrug,
-                 CDrugName=mergedTable$CombiDrugName,
-                 CDrugID=mergedTable$CombiDrugID,
-                 CDrugConc=mergedTable$CombiDrugConc,
-                 BDrugName=mergedTable$BDrugName,
-                 BDrugID=mergedTable$IDBaseDrug,
-                 BDrugConc=mergedTable$ConcValueBaseDrug,
-                 BDrugConcId=mergedTable$concBaseDrug,
-                 effectBC=mergedTable$normalizedValue,
-                 effectB=mergedTable$normValueBaseDrugOnly,
-                 effectC=mergedTable$MediannormValueCombiDurgOnly,
-                 PatientID=mergedTable$PatientID,
-                 PlateID=mergedTable$PlateID,
-                 PlateDate=mergedTable$PlateDate,
-                 PlateTime=mergedTable$PlateTime,
-                 WellNo=mergedTable$WellNo,
-                 WellLetter=mergedTable$WellLetter,
-                 ScreenDate=mergedTable$ScreenDate,
-                 ScreenNo=mergedTable$ScreenNo,
-                 DMmedian=mergedTable$pureDMSOMedian,
-                 rawValue=mergedTable$rawValue
-                 )
+stopifnot(nrow(mergedTable) == nrow(drugstable))
 ```
 
 
-#Change AVL to AVL292 in CDrugAbrv
-```{r}
-df4ana$CDrugAbrv[df4ana$CDrugAbrv=="AVL"]<-"AVL292"
-CompleteDF$CombiDrug[CompleteDF$CombiDrug=="AVL"]<-"AVL292"
-```
 
 #Data Export
 Save data to be used in 
 * DrugCombi_Visualisation.Rmd (Visualisation of viabilities)
 * DrugCombi_LinkMolecular.Rmd (molecular characterzation of patient subgroups)
 ```{r}
-save(df4ana, CompleteDF, DrugBase, DrugAll, SetUpRest, SetUp12, file="ImportedData.RData")
+# select columns to use for further analysis
+df4ana <- select(mergedTable,
+                 CDrugAbrv = CombiDrug,
+                 CDrugName = CombiDrugName,
+                 CDrugID = CombiDrugID,
+                 CDrugConc = CombiDrugConc,
+                 CDrugNameLong = CombiDrug_longname,
+                 BDrugName = BaseDrugName,
+                 BDrugID = BaseDrugID,
+                 BDrugConc = BaseDrugConc,
+                 BDrugConcId = BaseDrugConcID,
+                 effectBC,
+                 effectB,
+                 effectC,
+                 PatientID,
+                 ScreenDate,
+                 ScreenNo
+                 )
+
+DrugMetaList = list(DrugInfoAll = DrugInfoAll,
+                    DrugInfoBase = DrugInfoBase,
+                    DrugInfoCombi = DrugInfoCombi)
+SetUpList <- list(SetUpRest =SetUpRest,
+                  SetUp12 = SetUp12)
 ```
 
-The columns of df4ana are
+```{r}
+if(!dir.exists("out")) dir.create("out")
+save(df4ana, CompleteDF, DrugMetaList, SetUpList, file=paste0("out/MarinaCombiData_",today,".RData"))
+```
+
+* `CompleteDF` contains the raw and normalized values per well/plate/screen
+* `df4ana` contains the normalized values for each single drug and drug-drug combination per sample and concentration)
+* `DrugMetaList` contains info about the drugs used as base and combi compounds
+* `SetUpList` contains the plate setups for the screens
+
+The columns of `df4ana` are
+
  | column name | description |
  | ------------- |-------------|
-| CDrugAbrv  | combination drug (per plate, as in excel file name) |
+| CDrugAbrv  | combination drug (per plate, as in excel file name) dinstinguished also the two Ibrutinib concentrations|
 | CDrugName | full name of combination drug |
+| CDrugNameLong | long name of combination drug |
 | CDrugID    |  	ID of combination drug |
 | CDrugConc  	| concentration of combination drug |
 | BDrugName  | name of base drug|
@@ -384,15 +406,9 @@ The columns of df4ana are
 | effectBC    |	normalised viability value of the drug combination B+C (normalised by the median of DM wells on same plate) |
 | effectB    |	 normalised viability value of the drug B (on DMSO plate) (normalised by the median of DM wells on same plate) |
 | effectC     |	median of normalised viability value of the drug C (in DM+ wells) (normalised by the median of DM wells on same plate) |
-|PatientID   ||
-|PlateID     ||
-| PlateDate   ||
-|PlateTime  ||
-|WellNo     ||
-|WellLetter  ||
-|ScreenDate  ||
-|ScreenNo   ||
-| DMmedian   |	median of DM wells on this plate|
-| rawValue |	raw values from excel files|
+|PatientID   |Patient ID P0XXX|
+|ScreenDate  |date of screen yyyy-mm-dd|
+|ScreenNo   | number of screen SSX from 1 to 13|
+
 
 
