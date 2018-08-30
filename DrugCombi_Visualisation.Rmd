@@ -1,0 +1,1119 @@
+---
+title: "DrugCombi_Visualization"
+author: "Britta Velten"
+date: "21 October 2016"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+---
+#Introduction
+
+Takes the data object created in DrugCombi_RawDataAnalysis.Rmd and produces plots of the viability values.
+
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r, echo=F}
+library(ggplot2)
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(dplyr)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+```
+
+```{r, echo=F}
+today<-"090817"
+setwd("~/Documents/cll/MarinaDrugComb/")
+datadir<-"~/Documents/cll/MarinaDrugComb/rawData"
+outputdir = paste0("output", today)
+if(!file.exists(outputdir)) dir.create(outputdir)
+```
+
+#Overview over external plots produced in this file:
+
+|plot name | description |
+| ------------- | ------------- |
+| "plateplots.raw.pdf" | Raw Viabilities Measures per plate |
+| "plateplots.norm.pdf" | DMSO-normalized Viability measures per plate |
+| "replicateConsensus.pdf" | Scatterplot of raw viability values, normalized viability values of drug combinations, viabiliy values of base drug alon, viability values of combi drug alone comparing the two replicates of patients in screen 1 and 2 |
+| "ComparisonWithLeoScreen.pdf" | scatterplot of viability values of base drugs comparing Leos and Marinas screens among matching concentrations and across patients that are present in exactly one of Marina's screen |
+| "BaseAloneVsCombi.pdf" | Normalized viabilities of drug B only (from DMSO plate) vs normalized viabilities of both drugs |
+| "CombiVsAddEffect.pdf" | Normalized viabilities of both drugs vs the theoretical value in an additive effect model given by the product of the normalized viabilities using only drug B and drug C, respectively  |
+| "Curves.pdf" | Normalized viabilites of both drug in solid and of theoretical additive value in dashed over the 5 concentrations used for drugB |
+| "ABC.pdf" | area between the curves (ABC) of Curves.pdf for all patients normalized by highest concentration value used, red line gives the median |
+| "CombiBenefit.pdf" | barplots of median of the ABC for each drug-drug combination |
+| "DiffPerConc.pdf" | differenc between  normalized viabilites of both drug and theoretical additive value  for each of 5 concentrations and all patients |
+| "HeatmapSynergyDrugByDrug.pdf" | Heatmap clustered by correlation distances between either the median of ABC values across patients (i.e. as bars in "CombiBenefit.pdf" or red line in "ABC.pdf") or the mean across the 5 concentrations over the patients median of concentration-wise difference (i.e. mean/median of values in "DiffPerConc.pdf" |
+| "HeatmapSynergyDrugByDrug_zscore.pdf" | Heatmap clustered by correlation distances between column-wise z-scores of ABC values or mean over concentrations as above |
+|"HeatmapBaseDrugByDrug.pdf"| Heatmap based on correlation bewteen viabilities values of base drugs, clustered by correlation distances|
+|"HeatmapBaseDrugByPatients.pdf"|Heatmap based on viabilities values of base drugs for each patient, clustered by correlation distances|
+|"HeatmapBaseDrugByPatients_zscore.pdf"|Heatmap based on z-score viabilities values of base drugs for each patient clustered by correlation distance|
+
+#Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
+
+```{r}
+load("ImportedData.RData")
+```
+
+Loaded dataframe from ImportedData:
+
+- 'DrugBase': contains metadata about basis drugs used (e.g. name concentrations)
+- 'DrugAll': contains metadata about all drugs (e.g. name, target, id, synonyms etc)
+- 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
+- 'SetUp12', 'SetUpRest' contains info about plate structure for the screens
+- 'df4ana' contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
+
+
+
+
+## Setting colors for patients.
+
+```{r}
+colset = grDevices::colors()[!grepl("^gr(a|e)y", grDevices::colors())]
+patcol = unique(df4ana$PatientID)
+set.seed(2808)
+patcol = setNames(colset[sample.int(length(colset),length(patcol))], nm=patcol)
+```
+
+Color legend for patient:
+```{r, eval=F, echo=F}
+pdf(file.path(outputdir,"legendPatients.pdf"))
+ggplot(data=data.frame(X=names(patcol), Y=1)) + geom_bar(aes(x=X, y=Y, fill=X), stat="identity") + scale_fill_manual(values=patcol) + guides(fill=FALSE) + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + xlab("") + ylab("")
+dev.off()
+```
+
+
+
+#Quality Control
+
+
+##PlotPlates
+Produces plot of the raw and normalized viability values for each plate.
+```{r}
+#raw
+pdf(file.path(outputdir,"plateplots.raw.pdf"), width=20, height=100)
+ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=rawValue)) + scale_fill_gradient(low="white", high="black")
+dev.off()
+
+#normalized
+pdf(file.path(outputdir,"plateplots.norm.pdf"), width=20, height=100)
+ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=normalizedValue)) + scale_fill_gradient(low="white", high="black")
+dev.off()
+```
+
+
+```{r, eval=F, echo=F}
+#raw Merged (DMSO parts are missing only drug-drug wells)
+pdf(file.path(outputdir,"plateplotsMerged.raw.pdf"), width=20, height=100)
+ggplot(df4ana, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=rawValue)) + scale_fill_gradient(low="white", high="black")
+dev.off()
+
+#normalized Merged (DMSO parts are missing only drug-drug wells)
+pdf(file.path(outputdir,"plateplotsMerged.norm.pdf"), width=20, height=100)
+ggplot(df4ana, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=effectBC)) + scale_fill_gradient(low="white", high="black")
+dev.off()
+```
+
+
+
+##compare to Gosias objects
+Data from "2013-10-16" (coreesponding to screen1, I remove it as well later) is missing in Gosias object, there is "2014-08-14"  additionally (corresponding to screen 11)
+In principle, same values BUT Gosia already has averages in case of replicates, in my object there are still both.
+For Ibrutinib-Ibrutinib plates Gosia also averaged (neglecting different Ibrutinib concentrations????)
+
+```{r, echo=F, eval=F}
+smallDF<-select(df4ana, CDrugID,  CDrugConc, BDrugID, BDrugConc, effectBC, effectB, effectC, PatientID, ScreenDate, PlateID)
+
+eGosia<-new.env()
+load("GosiasAndAnalyisisBasedOnHerObjects/GosiasWinwot.RData", envir=eGosia)
+load("GosiasAndAnalyisisBasedOnHerObjects/package_150515.RData", envir=eGosia)
+
+notInB<-setdiff(unique(as.character(eGosia$winwot$ExpDate)), unique(as.character(smallDF$ScreenDate)))
+notInG<-setdiff(unique(as.character(smallDF$ScreenDate)),unique(as.character(eGosia$winwot$ExpDate)))
+both<-intersect(unique(as.character(smallDF$ScreenDate)),unique(as.character(eGosia$winwot$ExpDate)))
+
+#PlateID 39 in Gosia corresponds to PlateID 45 (later again a jump as SS-IP included in Gosia) 
+#45 39 are Ibru Ibru plates smmeting is wrong here
+
+#in ibu+ibu plates Gosia alos took average?????? /here it would be wrong as different conc of Ibrutinib used...
+PlateB<-filter(smallDF, PlateID=="PL045")
+PlateG<-filter(eGosia$winwot, PlateID=="PL039")
+dim(PlateG);dim(PlateB) #DMSO part taken away
+plateBparts<-filter(PlateB[order(PlateB$BDrugID),],BDrugConc==1)
+plateGparts<-filter(PlateG[order(PlateG$DrugIDB),],ConcB==1)
+aveach2rows<-aggregate(select(plateBparts, effectBC, effectB, effectC),list(rep(1:(nrow(plateBparts)%/%2+1),each=2,len=nrow(plateBparts))),mean)[-1];
+plateBparts
+plateGparts
+aveach2rows
+all(aveach2rows$effectBC-plateGparts$effectAB==0)
+all(aveach2rows$effectB-plateGparts$effectB==0)
+all(aveach2rows$effectC-plateGparts$effectA==0)
+#effect of combidrug differs because I took medians over upper and lower half seperately, Gosia together maybe?
+median(filter(CompleteDF, PlateID=="PL045" & IDBaseDrug=="DM+")$normalizedValue)
+
+#for screen 1 and 2 Gosia already took average of the two replicates
+# identical for 2013-11-12_SS2_P0095_AVL.xlsx
+unique(df4ana$PlateID[df4ana$ScreenNo=="SS2"&df4ana$PatientID=="P0095"&df4ana$CombiDrug=="AVL"])
+PlateB<-filter(smallDF, PlateID=="PL011")
+PlateG<-filter(eGosia$winwot, PlateID=="PL005")
+dim(PlateG);dim(PlateB)
+head(PlateB[order(PlateB$BDrugID),])
+head(PlateG[order(PlateG$DrugIDB),])
+aveach2rows<-aggregate(select(PlateB[order(PlateB$BDrugID),], effectBC, effectB, effectC),list(rep(1:(nrow(PlateB)%/%2+1),each=2,len=nrow(PlateB))),mean)[-1];
+all(aveach2rows$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
+all(aveach2rows$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
+all(aveach2rows$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
+
+
+#non ibrutinib plates in screens 3-13 (wo 11) are identical
+#identical 2013-11-26_SS4_P0347_R406-DMSO.xlsx 
+PlateB<-filter(smallDF, PlateID=="PL046")
+PlateG<-filter(eGosia$winwot, PlateID=="PL040")
+dim(PlateG);dim(PlateB) #DMSO part taken away
+head(PlateB[order(PlateB$BDrugID),])
+head(PlateG[order(PlateG$DrugIDB),])
+all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
+
+#identical 2013-12-10_SS6_P0430_Ibrutinib100-LGX.xlsx 
+unique(df4ana$PlateID[df4ana$ScreenNo=="SS6"&df4ana$PatientID=="P0430"])
+PlateB<-filter(smallDF, PlateID=="PL067")
+PlateG<-filter(eGosia$winwot, PlateID=="PL061")
+dim(PlateG);dim(PlateB)
+head(PlateB[order(PlateB$BDrugID),])
+head(PlateG[order(PlateG$DrugIDB),])
+all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
+
+rm(ls(envir = eGosia))
+```
+
+
+
+
+## Replicates
+Until now the dataframe contain fro screen 1 and 2 two replicates for each concentration and drug combination. Here, agreement is checked and then continue with averages....
+
+Where are replicates availables? Replicates are present in screen 1 and 2: Here every measurement has one replicate
+```{r}
+for (screen in as.character(unique(df4ana$ScreenNo))){
+df<-filter(df4ana, ScreenNo==screen)  
+checkDup<-select(df, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)
+dupIDX<- which(duplicated(checkDup)|duplicated(checkDup, fromLast=T))
+print(screen)
+print(paste("duplicated",length(dupIDX), "of", nrow(df)))
+print("")
+}
+```
+
+annotate replicates
+```{r}
+df4ana$replicate<-sapply(duplicated(select(df4ana, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)), function(bool) ifelse(bool,2,1))
+sum(df4ana$replicate==2)
+df4ana$patrep<-paste(df4ana$PatientID, df4ana$replicate, sep="_")
+```
+
+
+Check agreement between replicates, output: "replicateConsensus.pdf"
+```{r}
+pdf(file.path(outputdir,"replicateConsensus.pdf"))
+for (screen in c("SS1","SS2")){
+dfSS<-filter(df4ana, ScreenNo==screen)
+rep1<-filter(dfSS,replicate==1)
+rep2<-filter(dfSS,replicate==2)
+par(mfrow=c(2,2),oma=c(0,0,2,0))
+plot(rep1$rawValue, rep2$rawValue, main="raw values", xlab="rep1", ylab="rep2", col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$rawValue,rep2$rawValue)^2,2))), bty="n") 
+
+plot(rep1$effectBC, rep2$effectBC, main="normalized values effectBC", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectBC,rep2$effectBC)^2,2))), bty="n") 
+
+plot(rep1$effectB, rep2$effectB, main="normalized values effectB", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectB,rep2$effectB)^2,2))), bty="n") 
+plot(rep1$effectC, rep2$effectC, main="(normalized values effectC)", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectC,rep2$effectC)^2,2))), bty="n") 
+
+title(screen, outer=TRUE)
+}
+
+dev.off()
+```
+Note: last plot should be a straight line as same DM+ wells used for effectC and only one value per plate
+
+Only screen 2 (as screen 1 is dropped)
+Check agreement between replicates, output: "replicateConsensus.pdf"
+```{r}
+pdf(file.path(outputdir,"replicateConsensus_screen2.pdf"))
+for (screen in c("SS2")){
+dfSS<-filter(df4ana, ScreenNo==screen)
+rep1<-filter(dfSS,replicate==1)
+rep2<-filter(dfSS,replicate==2)
+par(mfrow=c(2,2),oma=c(0,0,2,0))
+plot(rep1$rawValue, rep2$rawValue, main="raw values", xlab="rep1", ylab="rep2", col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$rawValue,rep2$rawValue)^2,2))), bty="n") 
+
+plot(rep1$effectBC, rep2$effectBC, main="normalized values effectBC", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectBC,rep2$effectBC)^2,2))), bty="n") 
+
+plot(rep1$effectB, rep2$effectB, main="normalized values effectB", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectB,rep2$effectB)^2,2))), bty="n") 
+plot(rep1$effectC, rep2$effectC, main="(normalized values effectC)", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
+legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectC,rep2$effectC)^2,2))), bty="n") 
+
+title(screen, outer=TRUE)
+}
+
+dev.off()
+```
+
+```{r, echo=F, eval=F}
+#Estimate variability between measurements
+summary(abs(rep1$effectB-rep2$effectB))
+summary(abs(rep1$effectBC-rep2$effectBC))
+summary(abs(rep1$effectC-rep2$effectC))
+summary(abs(rep1$rawValue-rep2$rawValue))
+```
+
+Calculate average value for replicates
+```{r}
+dfSS<-filter(df4ana, ScreenNo%in%c("SS1","SS2"))
+dfSS<-dfSS[order(dfSS$WellLetter),]
+rep1<-filter(dfSS,WellNo%%2==0)
+rep2<-filter(dfSS,WellNo%%2==1)
+av<-(select(rep1, effectBC, effectB, effectC, DMmedian, rawValue)+select(rep2, effectBC, effectB, effectC, DMmedian, rawValue))/2
+repAv<-filter(dfSS, replicate==1)
+repAv[,c("effectBC", "effectB", "effectC", "DMmedian", "rawValue")]<-av
+df4anaAvreplicates<-rbind(repAv, filter(df4ana, !ScreenNo%in%c("SS1","SS2")))
+#remove non-meaningful columns
+df4anaAvreplicates$replicate<-NULL
+df4anaAvreplicates$patrep<-NULL
+df4anaAvreplicates$WellNo<-NULL
+df4anaAvreplicates$WellLetter<-NULL
+head(df4anaAvreplicates)
+```
+
+Comparison to Gosias ==> identical!
+```{r, echo=F, eval=F}
+#Compare averaged to Gosias
+# identical for 2013-11-12_SS2_P0095_AVL.xlsx
+unique(df4anaAvreplicates$PlateID[df4anaAvreplicates$ScreenNo=="SS2"&df4anaAvreplicates$PatientID=="P0095"&df4anaAvreplicates$CDrugAbrv=="AVL"])
+PlateB<-filter(df4anaAvreplicates, PlateID=="PL011")
+PlateG<-filter(eGosia$winwot, PlateID=="PL005")
+dim(PlateG);dim(PlateB)
+head(PlateB[order(PlateB$BDrugID),])
+head(PlateG[order(PlateG$DrugIDB),])
+all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
+all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
+```
+
+
+
+## Comparison to Leo's screen
+For simplicity using only patients in one screen of Marina (avoids averaging) and drop screen 1 as no good DMSO control.
+Output: "ComparisonWithLeoScreen.pdf"
+Agreement is in general ok, low correlation when close to 1.
+
+```{r}
+source("../SMART_Paper_1/addons.R")
+# LeosData <- c(
+#   ic50.1   = "drpar_150610.RData",      ## - IC50 data, see below
+#   ic50.2   = "conctab_150120.RData",
+#   ic50.3   = "drugs_151007.RData"
+# )
+LeosData <- c(
+  ic50.1   = "drpar_150610.RData",      ## - IC50 data, see below
+  ic50.2   = "conctab_150120.RData",
+  ic50.3   = "drugs_160418.RData"
+)
+loadRData(LeosData, dir="/Users/bvelten/Documents/cll/var")
+
+#prepare viabilites
+drsel <- drpar[, drpar$Best4PatientID]
+stopifnot(!any(duplicated(drsel$PatientID)))
+summaries <- c(paste("viaraw", 1:5, sep=".") %>% `names<-`(paste(1:5)), 
+               `4:5` = "AUCraw.4.5", `1:5` = "AUCraw.1.5")
+a <- do.call( abind, c( along=3, lapply( summaries, 
+                                         function(x) assayData(drsel)[[x]] ) ) ) 
+dimnames(a)[[3]] <- names(summaries)
+names(dimnames(a)) <- c( "drug", "patient", "summary" )
+drugData <- acast( melt(a), patient ~ drug + summary )
+rownames(drugData)<-c(substr(rownames(drugData),1,4)[1:3],
+                      substr(rownames(drugData),1,5)[4:nrow(drugData)])
+colnames(drugData)<-paste("D",substr(colnames(drugData),3,100), sep="")
+```
+
+
+
+```{r}
+#same concentrations used? NO, need to be matched
+rownames(conctab)<-paste("D",substr(rownames(conctab),3,5), sep="")
+LeosConc<-conctab[rownames(conctab)%in% DrugBase[,1],]
+MarinasConc<-DrugBase[DrugBase[,1] %in% rownames(LeosConc),c(1,4:8)]
+rownames(MarinasConc)<-MarinasConc[,1]
+MarinasConc<-MarinasConc[,-1]
+
+#patients in both screens (only take the one with only one combi screen to avoid need of averaging) and remove patients from screen 1
+patsInBoth<-intersect(rownames(drugData), filter(df4ana, ScreenNo!="SS1")$PatientID)
+patientsInOnlyOneScreen<-patsInBoth[sapply(patsInBoth, function(pat) length(unique(filter(df4ana, PatientID==pat)$ScreenNo))==1)]
+
+#to avoid rounding to lower number at .5
+round2 = function(x, n) {
+  posneg = sign(x)
+  z = abs(x)*10^n
+  z = z + 0.5
+  z = trunc(z)
+  z = z/10^n
+  z*posneg
+}
+
+# match Leos concentrations to Marinas and compare for each drug and concentration
+par(mfrow=c(10,5))
+pdf(file.path(outputdir,"ComparisonWithLeoScreen.pdf"))
+
+for(dr in rownames(LeosConc)){
+  MarinaEffectBdr<-df4anaAvreplicates[df4anaAvreplicates$BDrugID==dr &
+                                        df4anaAvreplicates$PatientID %in% patientsInOnlyOneScreen,
+                                      c("effectB", "PatientID", "BDrugConcId")]
+  MarinaEffectBdr$PatientID<-as.character(MarinaEffectBdr$PatientID)
+  #remove duplicates as DMSO plate value of durg B alone is in df4ana for each combination drug
+  MarinaEffectBdr<-MarinaEffectBdr[!duplicated(MarinaEffectBdr),]
+  stopifnot(length(unique(MarinaEffectBdr$PatientID))*5==length(MarinaEffectBdr$PatientID))
+  MarinaEffectBdr<-MarinaEffectBdr[order(MarinaEffectBdr$PatientID),]
+  LeosEffectdr<-drugData[rownames(drugData)%in%MarinaEffectBdr$PatientID,
+                         grep(paste(dr,"_[1-5]$",sep=""),colnames(drugData))]
+  cL<-round2(conctab[rownames(conctab)==dr,],3)
+  cM<-round2(MarinasConc[rownames(MarinasConc)==dr,],3)
+  matchConc<-match(cM,cL)
+  MarinaEffectBdr$LeoConcId<-matchConc[as.numeric(substr(MarinaEffectBdr$BDrugConcId,2,2))]
+  MarinaEffectBdr$LeoValue<-sapply(1:nrow(MarinaEffectBdr), function(idx) if(is.na(MarinaEffectBdr$LeoConcId[idx])) NA else LeosEffectdr[MarinaEffectBdr$PatientID[idx], paste(dr,MarinaEffectBdr$LeoConcId[idx], sep="_")])
+  for(conc in paste("c",1:5, sep="")){
+    marinacdr<-filter(MarinaEffectBdr, BDrugConcId== conc)
+    marinacdr<-marinacdr[rowSums(is.na(marinacdr))==0,]
+    if(nrow(marinacdr)>0){
+    plot(marinacdr$LeoValue,marinacdr$effectB, col=patcol[marinacdr$PatientID], main=paste(dr,"_",conc, sep=""), xlab="Leo screen", ylab="Marina screen", asp=1,
+         xlim=c(0,1.5), ylim=c(0,1.5))
+    legend("topleft", legend=bquote(rho^2 == .(round(cor(marinacdr$effectB,marinacdr$LeoValue)^2,2))), bty="n") 
+    } 
+    }
+    }
+
+dev.off()
+```
+
+
+##Comparison of measured single effects with decomposition of combination effect by medpolish
+As QC to see systematic trend in difference of single effect and combination.
+Use th measured viabilities after treatment with both drugs and derive from them the single drug effect by
+$\log(v_{ij})= \log(v_{i})+\log(v_{j}) + r_{ij}$ using medpolish. 
+```{r}
+listCombiEffectMatricesPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+  filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  melt(id.vars=c("CDrugAbrv", "drBc"), measure.vars = c("effectBC")) %>% acast(CDrugAbrv~drBc)
+})
+listSingleEffectBVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+  dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  melt(id.vars=c( "drBc"), measure.vars = c("effectB"))
+  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each combi drug the same
+  effectBvec<-dftmp$value
+  names(effectBvec)<-dftmp$drBc
+  effectBvec
+})
+listSingleEffectCVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+   dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_"))%>%  melt(id.vars=c( "CDrugAbrv"), measure.vars = c("effectC")) 
+  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each base drug the same
+  effectCvec<-dftmp$value
+  names(effectCvec)<-dftmp$CDrugAbrv
+  effectCvec
+})
+medpolish.out.list<-lapply(listCombiEffectMatricesPerPatrep, function(mat) medpolish(log(mat)))
+effectBmedpol<-lapply(medpolish.out.list, function(med) exp(med$col))
+effectCmedpol<-lapply(medpolish.out.list, function(med) exp(med$row))
+
+par(mfrow=c(3,3))
+for( i in 1:length(unique(df4ana$patrep))) {
+  plot(effectBmedpol[[i]], listSingleEffectBVectorsPerPatrep[[i]][names(effectBmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectB"))
+  lines(seq(0,1,0.1),seq(0,1,0.1))
+}
+for( i in 1:length(unique(df4ana$patrep))) {
+  plot(effectCmedpol[[i]], listSingleEffectCVectorsPerPatrep[[i]][names(effectCmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectC"), xlim=c(0,1.2), ylim=c(0,1.2))
+    lines(seq(0,1,0.1),seq(0,1,0.1))
+}
+```
+
+
+##Remove screen 1, outliers and save data
+
+Remove all tempory variables for quality control, keeping only
+- 'DrugBase': contains metadata about basis drugs used (e.g. name concentrations)
+- 'DrugAll': contains metadata about all drugs (e.g. name, target, id, synonyms etc)
+- 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
+- 'SetUp12', 'SetUpRest' contains info about plate structure for the screens
+- 'df4ana' contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
+- 'df4anaAvreplicates' like df4ana but summarized replicates to only one average value
+- directory info, color patients
+
+```{r}
+rm(list=setdiff(ls(), c("DrugBase", "DrugAll", 
+                        "CompleteDF", "SetUp12", 
+                        "SetUpRest", "df4ana",
+                        "df4anaAvreplicates",
+                        "outputdir", "datadir",
+                        "patcol")))
+```
+
+
+As no good DMSO plate available screen1  is dropped for all subsequnt analysis
+```{r}
+CompleteDF<-filter(CompleteDF, ScreenNo!="SS1")
+df4anaAvreplicates<-filter(df4anaAvreplicates,  ScreenNo!="SS1" )
+df4ana<-filter(df4ana, ScreenNo!="SS1")
+patcol<-patcol[names(patcol)%in% df4ana$PatientID]
+```
+
+Detect outliers: For each drug-drug combination patients with viabilities above 1.4 are marked
+```{r}
+OutlierPoints<-filter(df4anaAvreplicates, effectB >1.4 | effectC >1.4 | effectBC>1.4)
+OutlierPoints<-select(OutlierPoints, PatientID, BDrugName, CDrugAbrv) %>% mutate(OutlierCombi=paste(PatientID, BDrugName, CDrugAbrv, sep="_"))
+combi<-paste(df4anaAvreplicates$PatientID,df4anaAvreplicates$BDrugName, df4anaAvreplicates$CDrugAbrv, sep="_")
+df4anaAvreplicatesRmOutliers<-filter(df4anaAvreplicates, !paste(PatientID, BDrugName, CDrugAbrv, sep="_") %in% OutlierPoints$OutlierCombi)
+```
+
+##Data Export
+
+Export Data to be used in DrugCombi_Linkmolecular.Rmd
+```{r}
+save(DrugBase, DrugAll,CompleteDF,df4ana,SetUp12,SetUpRest, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers, file="DrugCombi_VisualisationData.RData")
+```
+
+
+
+#Remove Outliers from futher analysis?
+```{r}
+# df4anaAvreplicates<-df4anaAvreplicatesRmOutliers
+# outputdir<-paste(outputdir, "RemOutl", sep="_")
+# if(!file.exists(outputdir)) dir.create(outputdir)
+```
+
+
+#Plots
+
+## Helper Functions for plots
+Get legend from a ggplot object
+```{r}
+get_legend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+```
+
+
+##Scatter Plots indivdual effect of base drug vs. combination
+Included replicates
+```{r}
+BaseDrugs<-unique(df4ana$BDrugName)
+CombiDrugs<-unique(df4ana$CDrugAbrv)
+```
+
+```{r, eval=T}
+pdf(file.path(outputdir,"BaseAloneVsCombi.pdf"), height = 20, width = 30)
+for( drB in BaseDrugs){
+  for( conc in paste0("c",1:5)){
+  idx = which(df4ana$BDrugName==drB & df4ana$BDrugConcId==conc)
+  
+  df4plot<-df4ana[idx,]
+  df4plot$indiv<-df4plot$effectB
+  df4plot$combi<-df4plot$effectBC
+  range = c(0,1.25)
+
+  df4plot$shape = with(df4plot, ifelse( (indiv<range[1] | indiv>range[2]) | combi<range[1] | combi>range[2], "censored", "raw"))
+  df4plot$shape = paste(df4plot$shape, df4plot$rep, sep="_")
+
+  df4plot$indivcens = ifelse(df4plot$indiv < range[1], range[1], ifelse(df4plot$indiv > range[2], range[2], df4plot$indiv))
+  df4plot$combicens = ifelse(df4plot$combi < range[1], range[1], ifelse(df4plot$combi > range[2], range[2], df4plot$combi))
+  
+ gg<- ggplot(df4plot, aes(x=indivcens, y=combicens, color=PatientID, shape=shape))+
+    geom_point(size=2, alpha=0.7)+
+    geom_hline(aes(yintercept=0), colour="grey", linetype="dashed") +
+    geom_vline(aes(xintercept=0), colour="grey", linetype="dashed") +
+    scale_color_manual(values=patcol)+facet_wrap(~CDrugAbrv  , ncol=5) +
+    geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
+    ggtitle(paste("Base drug:", drB, conc))+ 
+    coord_fixed() + scale_x_continuous(limits=range) + 
+    scale_y_continuous( limits=range)+theme_bw()+
+    scale_shape_manual(values=c(raw_1=16, censored_1=17,raw_2=1, censored_2=2)) 
+    
+ print(gg)
+  }
+}
+dev.off()
+```
+
+
+##Scatter Plots combined effect vs. additive effect
+Included replicates
+```{r, eval=T}
+pdf(file.path(outputdir,"CombiVsAddEffect.pdf"), height = 10, width = 30)
+for( drB in BaseDrugs){
+  # for( conc in paste0("c",1:5)){
+  # idx = which(df4ana$BDrugName==drB & df4ana$BDrugConcId==conc)
+    idx = which(df4ana$BDrugName==drB)
+
+  df4plot<-df4ana[idx,]
+  df4plot$add<-df4plot$effectB*df4plot$effectC
+  df4plot$combi<-df4plot$effectBC
+  range = c(0,1.25)
+
+  df4plot$shape = with(df4plot, ifelse( (add<range[1] | add>range[2]) | combi<range[1] | combi>range[2], "censored", "raw"))
+  df4plot$shape = paste(df4plot$shape, df4plot$rep, sep="_")
+
+  df4plot$addcens = ifelse(df4plot$add < range[1], range[1], ifelse(df4plot$add > range[2], range[2], df4plot$add))
+  df4plot$combicens = ifelse(df4plot$combi < range[1], range[1], ifelse(df4plot$combi > range[2], range[2], df4plot$combi))
+  
+  for(drC in unique(df4plot$CDrugAbrv)){
+ gg<- ggplot(filter(df4plot, CDrugAbrv==drC), aes(x=addcens, y=combicens, color=PatientID, shape=shape))+
+    geom_point(size=10, alpha=0.7)+
+    geom_hline(aes(yintercept=0), colour="grey", linetype="dashed") +
+    geom_vline(aes(xintercept=0), colour="grey", linetype="dashed") +
+    scale_color_manual(values=patcol)+facet_wrap(~BDrugConcId  , ncol=5) +
+    geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
+    ggtitle(paste("Base drug:", drB, "Combination drug:", drC))+ 
+    coord_fixed() + scale_x_continuous(limits=range) + 
+    scale_y_continuous( limits=range)+theme_bw(base_size = 30)+
+    theme(axis.text = element_text(size = 30), legend.text= element_text(size = 30))+
+    scale_shape_manual(values=c(raw_1=16, censored_1=17,raw_2=1, censored_2=2))  +
+   ylab("viability - measured drug combination")+xlab("viability - theoretical additive model")+
+    # annotate("text", x=0.3, y=0.8, label= "antagonistic")+
+    annotate("text", x=0.8, y=0.3, label= "synergy", size=9)
+    #+ annotate("text", x=1, y=1, label= "additive")
+    
+ print(gg)
+  }
+}
+
+dev.off()
+```
+
+```{r, echo=T}
+source("plotThings.R")
+```
+
+##Note
+For the following plots replicate average value is used
+
+## Curve over concentrations
+Curve of combined effect over all concentrations of the base drug (solid) and curve of theoretical additive effect over all concentrations of the base drug (dashed)
+```{r, eval=T}
+plotThings("Curves",CombiDrugs=CombiDrugs,
+                     BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
+```
+
+## Area between curves of theoretical additive effect and true combined effect
+```{r, eval=T}
+# plotThings("ABC",CombiDrugs=CombiDrugs,
+                     # BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
+
+
+#direct
+#for CombiDrugs
+dfAggr<-select(df4anaAvreplicates,CDrugAbrv, BDrugName, PatientID, effectC) 
+dfAggr<-dfAggr[!duplicated(dfAggr),]
+dfAggr$ABC<-sapply(1:nrow(dfAggr), function(i){
+dfidx<-dfAggr[i,] 
+subDF<-df4anaAvreplicates  %>%  
+  filter(CDrugAbrv==as.character(dfidx$"CDrugAbrv"),
+         BDrugName==as.character(dfidx$"BDrugName"),
+         PatientID==as.character(dfidx$"PatientID"))
+#claculate area between the curves and normalize by highest concentration used
+(-trapz(subDF$BDrugConc, subDF$effectB*subDF$effectC)-(-trapz(subDF$BDrugConc, subDF$effectBC)))/as.numeric(filter(DrugBase,Substance==dfidx$"BDrugName")[4]) #minus because concentrations ordered from high to low
+}) 
+dfAggr<-cbind(dfAggr,t(sapply(1:nrow(dfAggr), function(i){
+dfidx<-dfAggr[i,] 
+subDF<-df4anaAvreplicates  %>%  
+  filter(CDrugAbrv==as.character(dfidx$"CDrugAbrv"),
+         BDrugName==as.character(dfidx$"BDrugName"),
+         PatientID==as.character(dfidx$"PatientID"))
+effectB<-subDF$effectB
+names(effectB)<-paste("effectB_",subDF$BDrugConcId, sep="")
+effectB
+}) ))
+mini<-round(min(dfAggr$ABC))+1
+maxi<-round(max(dfAggr$ABC))+1
+maxiviab<-1.4
+miniviab<-0
+
+pdf(file.path(outputdir,"ABC_gg.pdf"), height=20, width=15)
+for(drC in CombiDrugs){
+  for(drB in BaseDrugs){
+    subDF<-filter(dfAggr, CDrugAbrv==drC, BDrugName==drB)
+    textsize<-18
+
+ggABC<-ggplot(subDF, aes(y=ABC, x=reorder(PatientID,ABC), fill=PatientID))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("SI of",drC, "with", drB))+xlab("Patient")+ theme(legend.position = "none")+ylab("SI")+
+  geom_hline(aes(yintercept=median(subDF$ABC)))+coord_cartesian(ylim=c(mini, maxi))+ theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))
+
+ggCombiDrug<-ggplot(subDF, aes(y=effectC, x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectC>maxiviab, "cutoff", "raw")))+ geom_bar(stat="identity")+scale_fill_manual(values=patcol)+scale_color_manual(values=c(cutoff="red",raw="black"))+ggtitle(paste("Single effect of", drC))+xlab("Patient")+ theme(legend.position = "none") + theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))
+
+gg_Basec1<-ggplot(subDF,aes(y=effectB_c1, x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectB_c1>maxiviab, "cutoff", "raw")))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("Single effect of", drB, ("c1")))+xlab("Patient")+ theme(legend.position = "none") + theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))+scale_color_manual(values=c(cutoff="red",raw="black"))
+gg_Basec2<-ggplot(subDF,aes(y=effectB_c2,  x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectB_c2>maxiviab, "cutoff", "raw")))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("Single effect of", drB, ("c2")))+xlab("Patient")+ theme(legend.position = "none") + theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))+scale_color_manual(values=c(cutoff="red",raw="black"))
+gg_Basec3<-ggplot(subDF,aes(y=effectB_c3,x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectB_c3>maxiviab, "cutoff", "raw")))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("Single effect of", drB, ("c3")))+xlab("Patient")+ theme(legend.position = "none") + theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))+scale_color_manual(values=c(cutoff="red",raw="black"))
+gg_Basec4<-ggplot(subDF,aes(y=effectB_c4,  x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectB_c4>maxiviab, "cutoff", "raw")))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("Single effect of", drB, ("c4")))+xlab("Patient")+ theme(legend.position = "none") + theme(axis.text.x = element_blank())+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))+scale_color_manual(values=c(cutoff="red",raw="black"))
+gg_Basec5<-ggplot(subDF,aes(y=effectB_c5,  x=reorder(PatientID,ABC), fill=PatientID, col=ifelse(effectB_c5>maxiviab, "cutoff", "raw")))+geom_bar(stat="identity")+scale_fill_manual(values=patcol)+ggtitle(paste("Single effect of", drB, ("c5")))+xlab("Patient")+ theme(legend.position = "none") +theme(axis.text.x = element_text(angle = 90, hjust = 1))+ theme(text = element_text(size = textsize))+ylab("viability of DMSO control")+coord_cartesian(ylim=c(miniviab, maxiviab))+scale_color_manual(values=c(cutoff="red",raw="black"))
+
+grid.arrange(ggABC, ggCombiDrug,gg_Basec1,gg_Basec2,gg_Basec3,gg_Basec4,gg_Basec5, nrow=4)
+}}
+dev.off()
+
+
+```
+
+## Difference between curves at the individual concentration values
+```{r, eval=T}
+CombiBenefitMeanDiff<-plotThings("DiffPerConc",CombiDrugs=CombiDrugs,
+                     BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
+
+
+#direct:
+pdf(file.path(outputdir,"DiffPerConc_gg.pdf"), height=20, width=15)
+for(drC in CombiDrugs){
+  for(drB in BaseDrugs){
+gg<-df4anaAvreplicates  %>%  filter(CDrugAbrv==drC, BDrugName==drB) %>%
+mutate(effectthBC=effectB*effectC,deltaEffect=-effectBC+effectthBC)%>% 
+ggplot(aes(x=PatientID, y=deltaEffect, fill=PatientID, group=BDrugConcId, col=BDrugConcId))+geom_bar(stat="identity", position="dodge")+scale_fill_manual(values=patcol)+coord_flip()+ggtitle(paste(drC, "with", drB))
+print(gg)
+} }               
+dev.off()
+```
+
+##ABC median across Patients
+needs some scaling to concentrations considered to be interpretable as a value
+```{r, eval=T}
+CombiBenefitABCMedian<-plotThings("CombiBenefit",CombiDrugs=CombiDrugs,
+                     BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
+write.csv(CombiBenefitABCMedian, file.path(outputdir,"ABCMedian.csv"))
+```
+
+#Calculate CI index accoridng to highest single agent and Bliss
+Set CI to one if no effect of combination observed. ?
+```{r}
+df4CI<-mutate(df4anaAvreplicates,
+              viabB=effectB,
+              viabC=effectC,
+              viabBC=effectBC,
+              viabBper=effectB*100,
+              viabCper=effectC*100,
+              viabBCper=effectBC*100,
+              thviabBC=viabB*viabC,
+              thviabBCper=viabB*viabC*100,
+              effectB=pmax(1-viabB,0),
+              effectC=pmax(1-viabC,0),
+              effectBC=pmax(1-viabBC,0))
+df4CI<-mutate(df4CI,
+              drBc=paste(BDrugName, BDrugConcId, sep="_"),
+              CI_Bliss=ifelse(effectBC!=0,(effectB+effectC-effectB*effectC)/effectBC, 1) ,
+              CI_HA=ifelse(effectBC!=0,pmax(effectB, effectC)/effectBC,1)
+              )
+df4CI<-mutate(df4CI, DiffAddSI=-viabBC+thviabBC)
+#positive values indicate synergy (as measured viability lower than in an additive model)
+write.csv(df4CI, file=file.path(outputdir,"Data4CI.csv"))
+save(df4CI, file="df4CI.RData")
+```
+
+##Curves Single Agents, th. Combination and measured Combination
+
+```{r}
+pdf(file.path(outputdir,"CurvesSingleCombi.pdf"), width=15, height=18)
+for(drC in unique(df4CI$CDrugAbrv)){
+MedianDf4CI<-df4CI%>% filter(CDrugAbrv==drC) %>% 
+  group_by( BDrugName, BDrugConcId) %>%
+  dplyr::summarise(medianViabB=median(viabB),medianViabC=median(viabC),
+                   medianViabBC=median(viabBC),medianthViabBC=median(thviabBC),
+                   MADViabB=mad(viabB),MADViabC=mad(viabC),
+                   MADViabBC=mad(viabBC), MADthViabBC=mad(thviabBC))
+                                                                                            MedianDf4CI$BDrugConcId<-factor(MedianDf4CI$BDrugConcId, levels=rev(levels(MedianDf4CI$BDrugConcId)))          
+                                                                                                      
+gg<-ggplot(ungroup(MedianDf4CI), aes(x=BDrugConcId, group=BDrugName)) +
+  geom_line(aes(y=medianViabBC, colour="BC"))+geom_point(aes(y=medianViabBC, colour="BC"))+geom_pointrange(aes(y=medianViabBC, ymin=medianViabBC-MADViabBC,ymax=medianViabBC+MADViabBC, colour="BC"))+
+  geom_point(aes(y=medianViabB, colour="B"))+geom_line(aes(y=medianViabB, colour="B"))+geom_pointrange(aes(y=medianViabB, ymin=medianViabB-MADViabB,ymax=medianViabB+MADViabB, colour="B"))+
+  geom_point(aes(y=medianViabC, colour="C"))+geom_line(aes(y=medianViabC, colour="C"))+geom_pointrange(aes(y=medianViabC, ymin=medianViabC-MADViabC,ymax=medianViabC+MADViabC, colour="C"))+
+  geom_point(aes(y=medianthViabBC, colour="B*C"))+geom_line(aes(y=medianthViabBC, colour="B*C"))+geom_pointrange(aes(y=medianthViabBC,ymin=medianthViabBC-MADthViabBC,ymax=medianthViabBC+MADthViabBC, colour="B*C"))+
+ ggtitle(drC)+facet_wrap(~BDrugName, ncol=5, scales="free_y")+xlab("concentration of base drug") +ylab("Median viability (fraction of control)")+
+    theme_bw(base_size=18)#+scale_color_manual(values=brewer.pal(5,"Set1")[c(1:3,5)])
+print(gg)
+}
+dev.off()
+```
+
+In percentage
+```{r}
+pdf(file.path(outputdir,"CurvesSingleCombiPerc.pdf"), width=15, height=18)
+for(drC in unique(df4CI$CDrugAbrv)){
+MedianDf4CI<-df4CI%>% filter(CDrugAbrv==drC) %>% 
+  group_by( BDrugName, BDrugConcId) %>%
+  dplyr::summarise(medianViabB=median(viabBper),medianViabC=median(viabCper),
+                   medianViabBC=median(viabBCper),medianthViabBC=median(thviabBCper),
+                   MADViabB=mad(viabBper),MADViabC=mad(viabCper),
+                   MADViabBC=mad(viabBCper), MADthViabBC=mad(thviabBCper))
+                                                                                            MedianDf4CI$BDrugConcId<-factor(MedianDf4CI$BDrugConcId, levels=rev(levels(MedianDf4CI$BDrugConcId)))          
+                                                                                                      
+gg<-ggplot(ungroup(MedianDf4CI), aes(x=BDrugConcId, group=BDrugName)) +
+  geom_line(aes(y=medianViabBC, colour="BC"))+geom_point(aes(y=medianViabBC, colour="BC"))+geom_pointrange(aes(y=medianViabBC, ymin=medianViabBC-MADViabBC,ymax=medianViabBC+MADViabBC, colour="BC"))+
+  geom_point(aes(y=medianViabB, colour="B"))+geom_line(aes(y=medianViabB, colour="B"))+geom_pointrange(aes(y=medianViabB, ymin=medianViabB-MADViabB,ymax=medianViabB+MADViabB, colour="B"))+
+  geom_point(aes(y=medianViabC, colour="C"))+geom_line(aes(y=medianViabC, colour="C"))+geom_pointrange(aes(y=medianViabC, ymin=medianViabC-MADViabC,ymax=medianViabC+MADViabC, colour="C"))+
+  geom_point(aes(y=medianthViabBC, colour="B*C"))+geom_line(aes(y=medianthViabBC, colour="B*C"))+geom_pointrange(aes(y=medianthViabBC,ymin=medianthViabBC-MADthViabBC,ymax=medianthViabBC+MADthViabBC, colour="B*C"))+
+ ggtitle(drC)+facet_wrap(~BDrugName, ncol=5, scales="free_y")+xlab("concentration of base drug") +ylab("Median viability (% of control)")+
+    theme_bw(base_size=18)#+scale_color_manual(values=brewer.pal(5,"Set1")[c(1:3,5)])
+print(gg)
+}
+dev.off()
+```
+
+##Highest single agent and Bliss Index
+Concept of highes single agent: $CI=\frac{max(e_A, e_B)}{e_{AB}}$ with the effect e=1-viab
+Calculate CI for each drug-drug combination, do it effect based (1-viability) and cut-off values below zero (no negative effects).
+Concept of Bliss index $CI=\frac{e_A+ e_B-e_A*e_B)}{e_{AB}}$
+
+###Per Patient and concentration
+```{r}
+pdf(file.path(outputdir,"CI_PerPatientAndConc.pdf"))
+for(drC_idx in as.character(unique(df4CI$CDrugAbrv))){
+  for(drBc_idx in unique(df4CI$drBc)){
+    gg<-ggplot(dplyr::filter(df4CI, CDrugAbrv==drC_idx & drBc==drBc_idx) %>% melt(id.vars="PatientID", measure.vars = c("CI_HA","CI_Bliss")), aes(x=PatientID,y=value, fill=PatientID, color=variable))+geom_bar(position = "dodge", stat="identity")+scale_fill_manual(values=patcol)+scale_color_manual(values=c("black", "black"))+coord_flip()+
+          ggtitle(paste("CI for", drC_idx, "and", drBc_idx)) +
+          ylab("CI \n (CI<1 = synergy in the respective model)")+xlab("Patient")+geom_abline(colour="black",intercept=1, slope=0)+ theme(legend.position = "none")+facet_wrap(~variable)
+    print(gg)
+  }
+}
+dev.off()
+```
+
+
+###Summary across patients
+```{r}
+pdf(file.path(outputdir,"CI_AcrossPatPerConc.pdf"), height=30)
+for(drC in unique(df4CI$CDrugAbrv)){
+Summary_CI_Bliss<-df4CI%>%filter(CDrugAbrv==drC) %>% group_by( BDrugName, BDrugConcId)  %>% dplyr::summarise(mean=mean(CI_Bliss), median=median(CI_Bliss), vari=var(CI_Bliss), MAD=mad(CI_Bliss))
+Summary_CI_HA<-df4CI %>%filter(CDrugAbrv==drC) %>% group_by( BDrugName, BDrugConcId)  %>% dplyr::summarise(mean=mean(CI_HA), median=median(CI_HA), vari=var(CI_HA), MAD=mad(CI_HA))
+
+ggHA<-ggplot(Summary_CI_HA, aes(x=BDrugConcId, y=median, group=BDrugName))+geom_bar(position = "dodge", stat="identity")+geom_errorbar(aes(ymin=median-MAD, ymax=median+MAD))+facet_wrap(~BDrugName)+ylab("median CI_HA across patients")+xlab("base drug concentration")+ggtitle(paste("Highest Single Agent index for ", drC))+geom_abline(colour="red",intercept=1, slope=0)
+
+ggBliss<-ggplot(Summary_CI_Bliss, aes(x=BDrugConcId, y=median, group=BDrugName))+geom_bar(position = "dodge", stat="identity")+geom_errorbar(aes(ymin=median-MAD, ymax=median+MAD))+facet_wrap(~BDrugName)+ylab("median CI_Bliss across patients")+xlab("base drug")+ggtitle(paste("Bliss index for ", drC))+geom_abline(colour="red",intercept=1, slope=0)
+
+grid.arrange(ggBliss, ggHA)
+}
+dev.off()
+```
+
+
+
+
+#Heatmap combination
+Draw a heatmap of the area between curves (normalized by highest concentration used), red means more than additive (i.e. true viability curve of combination is below additive model curve) and blue means less than additive (i.e. true viability curve of combination is above additive model curve).
+```{r}
+DrugByDrugMatrixMean<-do.call(cbind, CombiBenefitMeanDiff)
+pheatmap(DrugByDrugMatrixMean, clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+```
+
+Concentration mean of Patient Median of DiffPerConc
+```{r}
+DrugByDrugMatrixABC<-do.call(cbind, CombiBenefitABCMedian)
+pheatmap(DrugByDrugMatrixABC)
+#remove IPI145
+# ipi145IDX<-which(rownames(DrugByDrugMatrixABC)=="IPI-145")
+ipi145IDY<-which(colnames(DrugByDrugMatrixABC)=="IPI145")
+DrugByDrugMatrixABC<-DrugByDrugMatrixABC[,-ipi145IDY]
+
+#remove IPI145
+# ipi145IDX<-which(rownames(DrugByDrugMatrixMean)=="IPI-145")
+ipi145IDY<-which(colnames(DrugByDrugMatrixMean)=="IPI145")
+DrugByDrugMatrixMean<-DrugByDrugMatrixMean[,-ipi145IDY]
+
+pdf(file.path(outputdir, "HeatmapSynergyDrugByDrug.pdf"))
+pheatmap(DrugByDrugMatrixABC, main = "Based on normalized area between \n viability curve of drug combination \n and theoretical additive viability curve \n (positive values=more than additive, \n negative values= less than additive)", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+pheatmap(DrugByDrugMatrixMean, main = "Based on mean difference across conentrations \n between viability median across patients of drug combination \n and theoretical additive model \n (positive values=more than additive, \n negative values= less than additive)", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+dev.off()
+
+# pdf(file.path(outputdir, "HeatmapSynergyDrugByDrug_zscore.pdf"))
+# DrugByDrugMatrixABC_sc<-apply(DrugByDrugMatrixABC,2,scale)
+# rownames(DrugByDrugMatrixABC_sc)<-rownames(DrugByDrugMatrixABC)
+# pheatmap(DrugByDrugMatrixABC_sc, main = "Z-scores of normalized area between \n viability curve of drug combination \n and theoretical additive viability curve \n (positive values=more than additive, \n negative values= less than additive)", clustering_distance_rows="correlation",
+#          clustering_distance_cols="correlation")
+# DrugByDrugMatrixMean_sc<-apply(DrugByDrugMatrixMean,2,scale)
+# rownames(DrugByDrugMatrixMean_sc)<-rownames(DrugByDrugMatrixMean)
+# pheatmap(DrugByDrugMatrixMean_sc, main = "Z-scores of mean difference across conentrations \n between viability median across patients of drug combination \n and theoretical additive model \n (positive values=more than additive, \n negative values= less than additive)", clustering_distance_rows="correlation",
+#          clustering_distance_cols="correlation")
+# dev.off()
+```
+
+#Heatmap Base-DrugxDrug and PatientxDrugs
+```{r}
+dftmp<-select(df4anaAvreplicates, effectB, BDrugName, BDrugConcId,PatientID, CDrugID )
+dftmp$Bid<-paste(dftmp$BDrugName, dftmp$BDrugConcId, sep="_")
+matrixBxP<-matrix(NA, ncol=length(unique(dftmp$Bid)), nrow=length(unique(dftmp$PatientID)))
+colnames(matrixBxP)<-unique(dftmp$Bid)
+rownames(matrixBxP)<-unique(dftmp$PatientID)
+for( drB in unique(dftmp$Bid)) {
+  tmpB<-filter(dftmp, Bid==drB)
+  select(tmpB, -CDrugID)[!duplicated(select(tmpB, -CDrugID)),]
+  matrixBxP[as.character(tmpB$PatientID),drB]<-tmpB$effectB
+}
+#remove patients with NAs (in at least on screen outliers)
+matrixBxP<-matrixBxP[apply(matrixBxP,1,function(r) !any(is.na(r))),]
+pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_cor.pdf"), width=30, height=30, onefile=FALSE)
+pheatmap(matrixBxP, main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation",
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+         breaks=seq(0,1.4,0.01)
+)
+dev.off()
+
+pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_zscore.pdf"), width=30, height=30, onefile=FALSE)
+Z_matrixBxP<-apply(matrixBxP,2,scale)
+rownames(Z_matrixBxP)<-rownames(matrixBxP)
+pheatmap(Z_matrixBxP, main = "Z-score normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+dev.off()
+
+pdf(file.path(outputdir, "HeatmapBaseDrugByDrug.pdf"), width=30, height=30, onefile=FALSE)
+pheatmap(cor(matrixBxP), main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+dev.off()
+
+```
+
+#Comparions BCR inhibitors
+Scatterplots comparing the effect of 2 BCR inhibitors across all base drugs
+```{r}
+PlotComparsionCombiCDrugs<-function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
+df.x<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.x)
+df.y<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.y)
+df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
+                                               "BDrugConc", "BDrugName"))
+effect.x<-df$effectBC.x
+effect.y<-df$effectBC.y
+
+filename<-paste("ComparisonCombi", CDrugAbrv.x, CDrugAbrv.y,".pdf", sep="_")
+  pdf(file.path(outputdir, filename), width=10, height=12)
+  df$cens.x<-ifelse(effect.x<range[1], range[1], ifelse(effect.x>range[2], range[2], effect.x))
+  df$cens.y<-ifelse(effect.y<range[1], range[1], ifelse(effect.y>range[2], range[2], effect.y))
+  df$shape<-ifelse(df$cens.x!=effect.x | df$cens.y!=effect.y, "censored", "uncensored")
+
+  gg1<-ggplot(df, aes(x=cens.x, y=cens.y, col=BDrugName, shape=shape))+geom_point()+xlab(paste("Combination effect with", CDrugAbrv.x, "\n (viability relative to DMSO control)"))+ylab(paste("Combination effect with", CDrugAbrv.y, "\n (viability relative to DMSO control)"))+    scale_shape_manual(values=c(censored=2, uncensored=19)) + annotate("text", x=range[1]+0.1, y=range[2]-0.1, label=paste("rho^2 ==", (round(cor(df$effectBC.x,df$effectBC.y)^2,2))), parse=T)
+
+  print(gg1)
+  
+  gg2<-ggplot(df, aes(x=cens.x, y=cens.y, col=BDrugName, shape=shape))+geom_point()+
+    xlab("Combination effect with Ibrutinib100 \n (viability relative to DMSO control)")+
+    ylab("Combination effect with CAL-101 \n (viability relative to DMSO control)")+
+    facet_wrap(~BDrugName)+    scale_shape_manual(values=c(censored=2, uncensored=19))+
+    annotate("text", x=range[1]+0.3, y=range[2]-0.1, label=paste("rho^2 ==", (round(dplyr::summarize(group_by(df, BDrugName), cor=cor(effectBC.x, effectBC.y))$cor,2))), parse=T, size=3) +guides(col=guide_legend(ncol=1)) + geom_abline(slope=1, intercept=0)
+  print(gg2)
+  #remove outliers higher than 2
+  # df_remOutlier<-df[df$effectBC.x<2 & df$effectBC.y<2,]
+  df_remOutlier<-df
+  df_directcomp<-data.frame(effect=c(df_remOutlier$effectBC.x,
+                                     df_remOutlier$effectBC.y),
+                            drug=c(as.character(df_remOutlier$CDrugAbrv.x),
+                                   as.character(df_remOutlier$CDrugAbrv.y)))
+  median<-df_directcomp%>%group_by(drug)%>% dplyr::summarise(median(effect))
+  t.out<-t.test(df_directcomp$effect ~ df_directcomp$drug, var.equal=TRUE)
+  
+gg3<-ggplot(df_directcomp, aes(x=drug, y=effect))+geom_point(position="jitter", alpha=0.4, col="forestgreen")+geom_boxplot(alpha=0.4) + annotate("text", label=paste("p=",round(t.out$p.value,3)), x = 1.5, y = 2, size = 4)+ annotate("text", label=paste("median=",as.numeric(median[1,2])), x = 1, y = 1.5, size = 4)+ annotate("text", label=paste("median=", as.numeric(median[2,2])), x = 2, y = 1.5, size = 4)
+print(gg3)
+
+dev.off()
+}
+  
+```
+
+```{r}
+PlotComparsionSingleCDrugs<-function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
+df.x<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.x)
+df.y<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.y)
+df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
+                                               "BDrugConc", "BDrugName"))
+df<-select(df, PatientID, CDrugAbrv.x, CDrugAbrv.y, CDrugID.x, CDrugID.y, CDrugConc.x,CDrugConc.y, effectC.x,effectC.y )
+df<-distinct(df)
+effect.x<-df$effectC.x
+effect.y<-df$effectC.y
+
+# filename<-paste("ComparisonSingle", CDrugAbrv.x, CDrugAbrv.y,".pdf", sep="_")
+  # pdf(file.path(outputdir, filename), width=7, height=7)
+  df$cens.x<-ifelse(effect.x<range[1], range[1], ifelse(effect.x>range[2], range[2], effect.x))
+  df$cens.y<-ifelse(effect.y<range[1], range[1], ifelse(effect.y>range[2], range[2], effect.y))
+  df$shape<-ifelse(df$cens.x!=effect.x | df$cens.y!=effect.y, "censored", "uncensored")
+
+  gg1<-ggplot(df, aes(x=cens.x, y=cens.y,shape=shape))+geom_point()+
+    xlab(paste("Single effect of", CDrugAbrv.x, "\n (viability relative to DMSO control)"))+
+    ylab(paste("Single effect of", CDrugAbrv.y, "\n (viability relative to DMSO control)"))+
+    scale_shape_manual(values=c(censored=2, uncensored=19)) + 
+    annotate("text", x=range[1]+0.2, y=range[2]-0.1, 
+             label=paste("rho^2 ==", (round(cor(df$effectC.x,df$effectC.y)^2,2))), parse=T)+ scale_x_continuous(limits=range) + 
+    scale_y_continuous( limits=range) +ggtitle(paste("Comparison of single effect of", CDrugAbrv.x, "and", CDrugAbrv.y, sep=" "))
+
+  print(gg1)
+  
+  # dev.off()
+}
+  
+```
+
+
+```{r}
+PlotComparsionCombiCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "CAL101", range = c(0,1.2))
+PlotComparsionCombiCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "Ibrutinib10", range = c(0,1.2))
+PlotComparsionCombiCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "AVL292", range = c(0,1.2))
+PlotComparsionCombiCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "R406", range = c(0,1.2))
+PlotComparsionCombiCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "IPI145", range = c(0,1.2))
+```
+
+```{r}
+pdf(file.path(outputdir,"ComparisonBCRSingle.pdf"))
+PlotComparsionSingleCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "CAL101", range = c(0,1.2))
+PlotComparsionSingleCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "Ibrutinib10", range = c(0,1.2))
+PlotComparsionSingleCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "AVL292", range = c(0,1.2))
+PlotComparsionSingleCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "R406", range = c(0,1.2))
+PlotComparsionSingleCDrugs(CDrugAbrv.x="Ibrutinib100", CDrugAbrv.y = "IPI145", range = c(0,1.2))
+dev.off()
+```
+
+Heatmap of combination effects with idelalisib and ibrutinib with only common patients (use Ibrutinib100 as more patients available)
+```{r}
+df.x<-filter(df4anaAvreplicates, CDrugAbrv=="Ibrutinib100")
+df.y<-filter(df4anaAvreplicates, CDrugAbrv=="CAL101")
+df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
+                                               "BDrugConc", "BDrugName"))
+df$BDrug<-paste(df$BDrugName, df$BDrugConcId, sep="_")
+
+dfIbru<-select(df, BDrug, effectBC.x, PatientID)
+df4melt<-select(df,PatientID,BDrug, effectBC.x )
+matIbru<-melt(df4melt,id.vars=c("PatientID", "BDrug"), measure.vars = "effectBC.x") %>%
+  acast(PatientID~BDrug)
+
+dfIdea<-select(df, BDrug, effectBC.y, PatientID)
+df4melt<-select(df,PatientID,BDrug, effectBC.y )
+matIdea<-melt(df4melt,id.vars=c("PatientID", "BDrug"), measure.vars = "effectBC.y") %>%
+  acast(PatientID~BDrug)
+
+#remove Na (patients being outlier in at least one screen)
+noOutl<-apply(matIbru,1,function(r) !any(is.na(r))) &apply(matIdea,1,function(r) !any(is.na(r)))
+matIbru<-matIbru[noOutl,]
+matIdea<-matIdea[noOutl,]
+
+pdf(file.path(outputdir,"HeatmapPatbyDrug_IbruVsIdea.pdf"), width=20, height = 15)
+pheatmap(matIbru, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+              clustering_distance_rows="correlation", 
+              clustering_distance_cols="correlation",
+              main=paste("viabilty values for combination with Ibrutinib100"),
+              breaks=seq(0,1.4,0.01),
+              silent=F, fontsize = 18, fontsize_col = 10,fontsize_row = 16)
+
+pheatmap(matIdea, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+              clustering_distance_rows="correlation", 
+              clustering_distance_cols="correlation",
+              main=paste("viabilty values for combination with CAL-101"),
+              breaks=seq(0,1.4,0.01),
+              silent=F, fontsize = 18, fontsize_col = 10,fontsize_row = 16)
+dev.off()
+
+#correlation between two base drugs across all patients for comnination effect with Ibrutinib or Idelalisib
+corIdea<-cor(matIdea)
+corIbru<-cor(matIbru)
+pdf(file.path(outputdir,"HeatmapDrugCor_IbruVsIdeal.pdf"), width=15, height = 15)
+pheatmap(corIdea, main="Correlation of viability values across patients for combination with CAL-101")
+pheatmap(corIbru, main="Correlation of viability values across patients for combination with Ibrutinib100")
+
+orderIbru<-hclust(dist(corIbru))$order
+corCombiIdea<-corIdea[orderIbru,orderIbru] 
+corCombiIdea[lower.tri(corCombiIdea, diag = F)]<-0
+
+corCombiIbru<-corIbru[orderIbru,orderIbru] 
+corCombiIbru[upper.tri(corCombiIbru, diag = F)]<-0
+corCombi<-corCombiIdea+corCombiIbru
+diag(corCombi)<-1
+
+pheatmap(corCombi, cluster_rows = F, cluster_cols =F, main="Correlation of viability values across patients for Ibrutinib (lower triangle) and CAL-101 (upper triangle)")
+dev.off()
+```
+
+
+Heatmap of combination effects with AVL292 and ibrutinib with only common patients (use Ibrutinib100 as more patients available)
+```{r}
+df.x<-filter(df4anaAvreplicates, CDrugAbrv=="Ibrutinib100")
+df.y<-filter(df4anaAvreplicates, CDrugAbrv=="AVL292")
+df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
+                                               "BDrugConc", "BDrugName"))
+df$BDrug<-paste(df$BDrugName, df$BDrugConcId, sep="_")
+
+dfIbru<-select(df, BDrug, effectBC.x, PatientID)
+df4melt<-select(df,PatientID,BDrug, effectBC.x )
+matIbru<-melt(df4melt,id.vars=c("PatientID", "BDrug"), measure.vars = "effectBC.x") %>%
+  acast(PatientID~BDrug)
+
+dfAVL<-select(df, BDrug, effectBC.y, PatientID)
+df4melt<-select(df,PatientID,BDrug, effectBC.y )
+matAVL<-melt(df4melt,id.vars=c("PatientID", "BDrug"), measure.vars = "effectBC.y") %>%
+  acast(PatientID~BDrug)
+
+#remove Na (patients being outlier in at least one screen)
+noOutl<-apply(matIbru,1,function(r) !any(is.na(r))) &apply(matAVL,1,function(r) !any(is.na(r)))
+matIbru<-matIbru[noOutl,]
+matAVL<-matAVL[noOutl,]
+
+pdf(file.path(outputdir,"HeatmapPatbyDrug_IbruVsAVL.pdf"), width=20, height = 15)
+pheatmap(matIbru, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+              clustering_distance_rows="correlation", 
+              clustering_distance_cols="correlation",
+              main=paste("viabilty values for combination with Ibrutinib100"),
+              breaks=seq(0,1.4,0.01),
+              silent=F, fontsize = 18, fontsize_col = 10,fontsize_row = 16)
+
+pheatmap(matAVL, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+              clustering_distance_rows="correlation", 
+              clustering_distance_cols="correlation",
+              main=paste("viabilty values for combination with CAL-101"),
+              breaks=seq(0,1.4,0.01),
+              silent=F, fontsize = 18, fontsize_col = 10,fontsize_row = 16)
+dev.off()
+
+#correlation between two base drugs across all patients for comnination effect with Ibrutinib or AVL
+corAVL<-cor(matAVL)
+corIbru<-cor(matIbru)
+pdf(file.path(outputdir,"HeatmapDrugCor_IbruVsAVL.pdf"), width=15, height = 15)
+pheatmap(corAVL, main="Correlation of viability values across patients for combination with AVL")
+pheatmap(corIbru, main="Correlation of viability values across patients for combination with Ibrutinib100")
+
+orderIbru<-hclust(dist(corIbru))$order
+corCombiAVL<-corAVL[orderIbru,orderIbru] 
+corCombiAVL[lower.tri(corCombiAVL, diag = F)]<-0
+
+corCombiIbru<-corIbru[orderIbru,orderIbru] 
+corCombiIbru[upper.tri(corCombiIbru, diag = F)]<-0
+corCombi<-corCombiAVL+corCombiIbru
+diag(corCombi)<-1
+
+pheatmap(corCombi, cluster_rows = F, cluster_cols =F, main="Correlation of viability values across patients for Ibrutinib (lower triangle) and AVL (upper triangle)")
+dev.off()
+```
+
+#SessionInfo
+```{r}
+sessionInfo()
+```
+
