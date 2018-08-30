@@ -39,7 +39,7 @@ today <- "180830"
 setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
 datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 outdir = "out"
-knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figures", today, "/"))
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresQC", today, "/"))
 ```
 
 #Overview over external plots produced in this file:
@@ -49,7 +49,6 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figures", today,
 | "plateplots.raw.pdf" | Raw Viabilities Measures per plate |
 | "plateplots.norm.pdf" | DMSO-normalized Viability measures per plate |
 | "replicateConsensus.pdf" | Scatterplot of raw viability values, normalized viability values of drug combinations, viabiliy values of base drug alon, viability values of combi drug alone comparing the two replicates of patients in screen 1 and 2 |
-| "ComparisonWithLeoScreen.pdf" | scatterplot of viability values of base drugs comparing Leos and Marinas screens among matching concentrations and across patients that are present in exactly one of Marina's screen |
 
 
 # Preparations
@@ -327,7 +326,7 @@ df4anaAvreplicates <- df4anaAvreplicatesRmOutliers
 
 Export Data to be used in DrugCombi_Linkmolecular.Rmd
 ```{r}
-save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,
+save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,patcol,
      file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
 ```
 

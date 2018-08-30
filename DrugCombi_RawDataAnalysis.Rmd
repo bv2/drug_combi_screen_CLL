@@ -277,7 +277,7 @@ CompleteDF <- rename(CompleteDF, CombiDrugName = name,
 
 Remove control wells from table (used only for normalization) (DM wells) (keep DM+ wells, which are DMSO as base compound but with a non-DMSO combi compound)
 ```{r}
-CompleteDFwoControl<-CompleteDF[CompleteDF$BaseDrugID!="DM",]
+CompleteDFwoControl <- filter(CompleteDF, BaseDrugID!="DM")
 ```
 
 ## Data Overview
@@ -370,7 +370,8 @@ df4ana <- select(mergedTable,
                  effectC,
                  PatientID,
                  ScreenDate,
-                 ScreenNo
+                 ScreenNo,
+                 rawValueBC = rawValue
                  )
 
 DrugMetaList = list(DrugInfoAll = DrugInfoAll,

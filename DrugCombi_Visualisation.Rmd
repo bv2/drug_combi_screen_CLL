@@ -31,24 +31,21 @@ library(dplyr)
 library(pheatmap)
 library(magrittr)
 library(lattice)
+library(tidyverse)
 ```
 
 ```{r, echo=F}
-today<-"090817"
-setwd("~/Documents/cll/MarinaDrugComb/")
-datadir<-"~/Documents/cll/MarinaDrugComb/rawData"
-outputdir = paste0("output", today)
-if(!file.exists(outputdir)) dir.create(outputdir)
+today<-"180830"
+setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+outdir <- "out"
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresViz", today, "/"))
 ```
 
 #Overview over external plots produced in this file:
 
 |plot name | description |
 | ------------- | ------------- |
-| "plateplots.raw.pdf" | Raw Viabilities Measures per plate |
-| "plateplots.norm.pdf" | DMSO-normalized Viability measures per plate |
-| "replicateConsensus.pdf" | Scatterplot of raw viability values, normalized viability values of drug combinations, viabiliy values of base drug alon, viability values of combi drug alone comparing the two replicates of patients in screen 1 and 2 |
-| "ComparisonWithLeoScreen.pdf" | scatterplot of viability values of base drugs comparing Leos and Marinas screens among matching concentrations and across patients that are present in exactly one of Marina's screen |
 | "BaseAloneVsCombi.pdf" | Normalized viabilities of drug B only (from DMSO plate) vs normalized viabilities of both drugs |
 | "CombiVsAddEffect.pdf" | Normalized viabilities of both drugs vs the theoretical value in an additive effect model given by the product of the normalized viabilities using only drug B and drug C, respectively  |
 | "Curves.pdf" | Normalized viabilites of both drug in solid and of theoretical additive value in dashed over the 5 concentrations used for drugB |
@@ -64,456 +61,25 @@ if(!file.exists(outputdir)) dir.create(outputdir)
 #Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
 
 ```{r}
-load("ImportedData.RData")
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 ```
 
-Loaded dataframe from ImportedData:
+Loaded dataframe from MarinaCombiDataAfterQC_:
 
-- 'DrugBase': contains metadata about basis drugs used (e.g. name concentrations)
-- 'DrugAll': contains metadata about all drugs (e.g. name, target, id, synonyms etc)
+- 'DrugMetaList': contains metadata about drug
 - 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
-- 'SetUp12', 'SetUpRest' contains info about plate structure for the screens
-- 'df4ana' contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
-
-
-
-
-## Setting colors for patients.
-
-```{r}
-colset = grDevices::colors()[!grepl("^gr(a|e)y", grDevices::colors())]
-patcol = unique(df4ana$PatientID)
-set.seed(2808)
-patcol = setNames(colset[sample.int(length(colset),length(patcol))], nm=patcol)
-```
-
-Color legend for patient:
-```{r, eval=F, echo=F}
-pdf(file.path(outputdir,"legendPatients.pdf"))
-ggplot(data=data.frame(X=names(patcol), Y=1)) + geom_bar(aes(x=X, y=Y, fill=X), stat="identity") + scale_fill_manual(values=patcol) + guides(fill=FALSE) + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + xlab("") + ylab("")
-dev.off()
-```
-
-
-
-#Quality Control
-
-
-##PlotPlates
-Produces plot of the raw and normalized viability values for each plate.
-```{r}
-#raw
-pdf(file.path(outputdir,"plateplots.raw.pdf"), width=20, height=100)
-ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=rawValue)) + scale_fill_gradient(low="white", high="black")
-dev.off()
-
-#normalized
-pdf(file.path(outputdir,"plateplots.norm.pdf"), width=20, height=100)
-ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=normalizedValue)) + scale_fill_gradient(low="white", high="black")
-dev.off()
-```
-
-
-```{r, eval=F, echo=F}
-#raw Merged (DMSO parts are missing only drug-drug wells)
-pdf(file.path(outputdir,"plateplotsMerged.raw.pdf"), width=20, height=100)
-ggplot(df4ana, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=rawValue)) + scale_fill_gradient(low="white", high="black")
-dev.off()
-
-#normalized Merged (DMSO parts are missing only drug-drug wells)
-pdf(file.path(outputdir,"plateplotsMerged.norm.pdf"), width=20, height=100)
-ggplot(df4ana, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=effectBC)) + scale_fill_gradient(low="white", high="black")
-dev.off()
-```
-
-
-
-##compare to Gosias objects
-Data from "2013-10-16" (coreesponding to screen1, I remove it as well later) is missing in Gosias object, there is "2014-08-14"  additionally (corresponding to screen 11)
-In principle, same values BUT Gosia already has averages in case of replicates, in my object there are still both.
-For Ibrutinib-Ibrutinib plates Gosia also averaged (neglecting different Ibrutinib concentrations????)
-
-```{r, echo=F, eval=F}
-smallDF<-select(df4ana, CDrugID,  CDrugConc, BDrugID, BDrugConc, effectBC, effectB, effectC, PatientID, ScreenDate, PlateID)
-
-eGosia<-new.env()
-load("GosiasAndAnalyisisBasedOnHerObjects/GosiasWinwot.RData", envir=eGosia)
-load("GosiasAndAnalyisisBasedOnHerObjects/package_150515.RData", envir=eGosia)
-
-notInB<-setdiff(unique(as.character(eGosia$winwot$ExpDate)), unique(as.character(smallDF$ScreenDate)))
-notInG<-setdiff(unique(as.character(smallDF$ScreenDate)),unique(as.character(eGosia$winwot$ExpDate)))
-both<-intersect(unique(as.character(smallDF$ScreenDate)),unique(as.character(eGosia$winwot$ExpDate)))
-
-#PlateID 39 in Gosia corresponds to PlateID 45 (later again a jump as SS-IP included in Gosia) 
-#45 39 are Ibru Ibru plates smmeting is wrong here
-
-#in ibu+ibu plates Gosia alos took average?????? /here it would be wrong as different conc of Ibrutinib used...
-PlateB<-filter(smallDF, PlateID=="PL045")
-PlateG<-filter(eGosia$winwot, PlateID=="PL039")
-dim(PlateG);dim(PlateB) #DMSO part taken away
-plateBparts<-filter(PlateB[order(PlateB$BDrugID),],BDrugConc==1)
-plateGparts<-filter(PlateG[order(PlateG$DrugIDB),],ConcB==1)
-aveach2rows<-aggregate(select(plateBparts, effectBC, effectB, effectC),list(rep(1:(nrow(plateBparts)%/%2+1),each=2,len=nrow(plateBparts))),mean)[-1];
-plateBparts
-plateGparts
-aveach2rows
-all(aveach2rows$effectBC-plateGparts$effectAB==0)
-all(aveach2rows$effectB-plateGparts$effectB==0)
-all(aveach2rows$effectC-plateGparts$effectA==0)
-#effect of combidrug differs because I took medians over upper and lower half seperately, Gosia together maybe?
-median(filter(CompleteDF, PlateID=="PL045" & IDBaseDrug=="DM+")$normalizedValue)
-
-#for screen 1 and 2 Gosia already took average of the two replicates
-# identical for 2013-11-12_SS2_P0095_AVL.xlsx
-unique(df4ana$PlateID[df4ana$ScreenNo=="SS2"&df4ana$PatientID=="P0095"&df4ana$CombiDrug=="AVL"])
-PlateB<-filter(smallDF, PlateID=="PL011")
-PlateG<-filter(eGosia$winwot, PlateID=="PL005")
-dim(PlateG);dim(PlateB)
-head(PlateB[order(PlateB$BDrugID),])
-head(PlateG[order(PlateG$DrugIDB),])
-aveach2rows<-aggregate(select(PlateB[order(PlateB$BDrugID),], effectBC, effectB, effectC),list(rep(1:(nrow(PlateB)%/%2+1),each=2,len=nrow(PlateB))),mean)[-1];
-all(aveach2rows$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
-all(aveach2rows$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
-all(aveach2rows$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
-
-
-#non ibrutinib plates in screens 3-13 (wo 11) are identical
-#identical 2013-11-26_SS4_P0347_R406-DMSO.xlsx 
-PlateB<-filter(smallDF, PlateID=="PL046")
-PlateG<-filter(eGosia$winwot, PlateID=="PL040")
-dim(PlateG);dim(PlateB) #DMSO part taken away
-head(PlateB[order(PlateB$BDrugID),])
-head(PlateG[order(PlateG$DrugIDB),])
-all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
-
-#identical 2013-12-10_SS6_P0430_Ibrutinib100-LGX.xlsx 
-unique(df4ana$PlateID[df4ana$ScreenNo=="SS6"&df4ana$PatientID=="P0430"])
-PlateB<-filter(smallDF, PlateID=="PL067")
-PlateG<-filter(eGosia$winwot, PlateID=="PL061")
-dim(PlateG);dim(PlateB)
-head(PlateB[order(PlateB$BDrugID),])
-head(PlateG[order(PlateG$DrugIDB),])
-all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
-
-rm(ls(envir = eGosia))
-```
-
-
-
-
-## Replicates
-Until now the dataframe contain fro screen 1 and 2 two replicates for each concentration and drug combination. Here, agreement is checked and then continue with averages....
-
-Where are replicates availables? Replicates are present in screen 1 and 2: Here every measurement has one replicate
-```{r}
-for (screen in as.character(unique(df4ana$ScreenNo))){
-df<-filter(df4ana, ScreenNo==screen)  
-checkDup<-select(df, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)
-dupIDX<- which(duplicated(checkDup)|duplicated(checkDup, fromLast=T))
-print(screen)
-print(paste("duplicated",length(dupIDX), "of", nrow(df)))
-print("")
-}
-```
-
-annotate replicates
-```{r}
-df4ana$replicate<-sapply(duplicated(select(df4ana, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)), function(bool) ifelse(bool,2,1))
-sum(df4ana$replicate==2)
-df4ana$patrep<-paste(df4ana$PatientID, df4ana$replicate, sep="_")
-```
-
-
-Check agreement between replicates, output: "replicateConsensus.pdf"
-```{r}
-pdf(file.path(outputdir,"replicateConsensus.pdf"))
-for (screen in c("SS1","SS2")){
-dfSS<-filter(df4ana, ScreenNo==screen)
-rep1<-filter(dfSS,replicate==1)
-rep2<-filter(dfSS,replicate==2)
-par(mfrow=c(2,2),oma=c(0,0,2,0))
-plot(rep1$rawValue, rep2$rawValue, main="raw values", xlab="rep1", ylab="rep2", col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$rawValue,rep2$rawValue)^2,2))), bty="n") 
-
-plot(rep1$effectBC, rep2$effectBC, main="normalized values effectBC", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectBC,rep2$effectBC)^2,2))), bty="n") 
-
-plot(rep1$effectB, rep2$effectB, main="normalized values effectB", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectB,rep2$effectB)^2,2))), bty="n") 
-plot(rep1$effectC, rep2$effectC, main="(normalized values effectC)", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectC,rep2$effectC)^2,2))), bty="n") 
-
-title(screen, outer=TRUE)
-}
-
-dev.off()
-```
-Note: last plot should be a straight line as same DM+ wells used for effectC and only one value per plate
-
-Only screen 2 (as screen 1 is dropped)
-Check agreement between replicates, output: "replicateConsensus.pdf"
-```{r}
-pdf(file.path(outputdir,"replicateConsensus_screen2.pdf"))
-for (screen in c("SS2")){
-dfSS<-filter(df4ana, ScreenNo==screen)
-rep1<-filter(dfSS,replicate==1)
-rep2<-filter(dfSS,replicate==2)
-par(mfrow=c(2,2),oma=c(0,0,2,0))
-plot(rep1$rawValue, rep2$rawValue, main="raw values", xlab="rep1", ylab="rep2", col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$rawValue,rep2$rawValue)^2,2))), bty="n") 
-
-plot(rep1$effectBC, rep2$effectBC, main="normalized values effectBC", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectBC,rep2$effectBC)^2,2))), bty="n") 
-
-plot(rep1$effectB, rep2$effectB, main="normalized values effectB", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectB,rep2$effectB)^2,2))), bty="n") 
-plot(rep1$effectC, rep2$effectC, main="(normalized values effectC)", xlab="rep1", ylab="rep2",col=patcol[rep1$PatientID])
-legend("topleft", legend=bquote(rho^2 == .(round(cor(rep1$effectC,rep2$effectC)^2,2))), bty="n") 
-
-title(screen, outer=TRUE)
-}
-
-dev.off()
-```
-
-```{r, echo=F, eval=F}
-#Estimate variability between measurements
-summary(abs(rep1$effectB-rep2$effectB))
-summary(abs(rep1$effectBC-rep2$effectBC))
-summary(abs(rep1$effectC-rep2$effectC))
-summary(abs(rep1$rawValue-rep2$rawValue))
-```
-
-Calculate average value for replicates
-```{r}
-dfSS<-filter(df4ana, ScreenNo%in%c("SS1","SS2"))
-dfSS<-dfSS[order(dfSS$WellLetter),]
-rep1<-filter(dfSS,WellNo%%2==0)
-rep2<-filter(dfSS,WellNo%%2==1)
-av<-(select(rep1, effectBC, effectB, effectC, DMmedian, rawValue)+select(rep2, effectBC, effectB, effectC, DMmedian, rawValue))/2
-repAv<-filter(dfSS, replicate==1)
-repAv[,c("effectBC", "effectB", "effectC", "DMmedian", "rawValue")]<-av
-df4anaAvreplicates<-rbind(repAv, filter(df4ana, !ScreenNo%in%c("SS1","SS2")))
-#remove non-meaningful columns
-df4anaAvreplicates$replicate<-NULL
-df4anaAvreplicates$patrep<-NULL
-df4anaAvreplicates$WellNo<-NULL
-df4anaAvreplicates$WellLetter<-NULL
-head(df4anaAvreplicates)
-```
-
-Comparison to Gosias ==> identical!
-```{r, echo=F, eval=F}
-#Compare averaged to Gosias
-# identical for 2013-11-12_SS2_P0095_AVL.xlsx
-unique(df4anaAvreplicates$PlateID[df4anaAvreplicates$ScreenNo=="SS2"&df4anaAvreplicates$PatientID=="P0095"&df4anaAvreplicates$CDrugAbrv=="AVL"])
-PlateB<-filter(df4anaAvreplicates, PlateID=="PL011")
-PlateG<-filter(eGosia$winwot, PlateID=="PL005")
-dim(PlateG);dim(PlateB)
-head(PlateB[order(PlateB$BDrugID),])
-head(PlateG[order(PlateG$DrugIDB),])
-all(PlateB[order(PlateB$BDrugID),]$effectBC-PlateG[order(PlateG$DrugIDB),]$effectAB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectB-PlateG[order(PlateG$DrugIDB),]$effectB==0)
-all(PlateB[order(PlateB$BDrugID),]$effectC-PlateG[order(PlateG$DrugIDB),]$effectA==0)
-```
-
-
-
-## Comparison to Leo's screen
-For simplicity using only patients in one screen of Marina (avoids averaging) and drop screen 1 as no good DMSO control.
-Output: "ComparisonWithLeoScreen.pdf"
-Agreement is in general ok, low correlation when close to 1.
-
-```{r}
-source("../SMART_Paper_1/addons.R")
-# LeosData <- c(
-#   ic50.1   = "drpar_150610.RData",      ## - IC50 data, see below
-#   ic50.2   = "conctab_150120.RData",
-#   ic50.3   = "drugs_151007.RData"
-# )
-LeosData <- c(
-  ic50.1   = "drpar_150610.RData",      ## - IC50 data, see below
-  ic50.2   = "conctab_150120.RData",
-  ic50.3   = "drugs_160418.RData"
-)
-loadRData(LeosData, dir="/Users/bvelten/Documents/cll/var")
-
-#prepare viabilites
-drsel <- drpar[, drpar$Best4PatientID]
-stopifnot(!any(duplicated(drsel$PatientID)))
-summaries <- c(paste("viaraw", 1:5, sep=".") %>% `names<-`(paste(1:5)), 
-               `4:5` = "AUCraw.4.5", `1:5` = "AUCraw.1.5")
-a <- do.call( abind, c( along=3, lapply( summaries, 
-                                         function(x) assayData(drsel)[[x]] ) ) ) 
-dimnames(a)[[3]] <- names(summaries)
-names(dimnames(a)) <- c( "drug", "patient", "summary" )
-drugData <- acast( melt(a), patient ~ drug + summary )
-rownames(drugData)<-c(substr(rownames(drugData),1,4)[1:3],
-                      substr(rownames(drugData),1,5)[4:nrow(drugData)])
-colnames(drugData)<-paste("D",substr(colnames(drugData),3,100), sep="")
-```
-
-
-
-```{r}
-#same concentrations used? NO, need to be matched
-rownames(conctab)<-paste("D",substr(rownames(conctab),3,5), sep="")
-LeosConc<-conctab[rownames(conctab)%in% DrugBase[,1],]
-MarinasConc<-DrugBase[DrugBase[,1] %in% rownames(LeosConc),c(1,4:8)]
-rownames(MarinasConc)<-MarinasConc[,1]
-MarinasConc<-MarinasConc[,-1]
-
-#patients in both screens (only take the one with only one combi screen to avoid need of averaging) and remove patients from screen 1
-patsInBoth<-intersect(rownames(drugData), filter(df4ana, ScreenNo!="SS1")$PatientID)
-patientsInOnlyOneScreen<-patsInBoth[sapply(patsInBoth, function(pat) length(unique(filter(df4ana, PatientID==pat)$ScreenNo))==1)]
-
-#to avoid rounding to lower number at .5
-round2 = function(x, n) {
-  posneg = sign(x)
-  z = abs(x)*10^n
-  z = z + 0.5
-  z = trunc(z)
-  z = z/10^n
-  z*posneg
-}
-
-# match Leos concentrations to Marinas and compare for each drug and concentration
-par(mfrow=c(10,5))
-pdf(file.path(outputdir,"ComparisonWithLeoScreen.pdf"))
-
-for(dr in rownames(LeosConc)){
-  MarinaEffectBdr<-df4anaAvreplicates[df4anaAvreplicates$BDrugID==dr &
-                                        df4anaAvreplicates$PatientID %in% patientsInOnlyOneScreen,
-                                      c("effectB", "PatientID", "BDrugConcId")]
-  MarinaEffectBdr$PatientID<-as.character(MarinaEffectBdr$PatientID)
-  #remove duplicates as DMSO plate value of durg B alone is in df4ana for each combination drug
-  MarinaEffectBdr<-MarinaEffectBdr[!duplicated(MarinaEffectBdr),]
-  stopifnot(length(unique(MarinaEffectBdr$PatientID))*5==length(MarinaEffectBdr$PatientID))
-  MarinaEffectBdr<-MarinaEffectBdr[order(MarinaEffectBdr$PatientID),]
-  LeosEffectdr<-drugData[rownames(drugData)%in%MarinaEffectBdr$PatientID,
-                         grep(paste(dr,"_[1-5]$",sep=""),colnames(drugData))]
-  cL<-round2(conctab[rownames(conctab)==dr,],3)
-  cM<-round2(MarinasConc[rownames(MarinasConc)==dr,],3)
-  matchConc<-match(cM,cL)
-  MarinaEffectBdr$LeoConcId<-matchConc[as.numeric(substr(MarinaEffectBdr$BDrugConcId,2,2))]
-  MarinaEffectBdr$LeoValue<-sapply(1:nrow(MarinaEffectBdr), function(idx) if(is.na(MarinaEffectBdr$LeoConcId[idx])) NA else LeosEffectdr[MarinaEffectBdr$PatientID[idx], paste(dr,MarinaEffectBdr$LeoConcId[idx], sep="_")])
-  for(conc in paste("c",1:5, sep="")){
-    marinacdr<-filter(MarinaEffectBdr, BDrugConcId== conc)
-    marinacdr<-marinacdr[rowSums(is.na(marinacdr))==0,]
-    if(nrow(marinacdr)>0){
-    plot(marinacdr$LeoValue,marinacdr$effectB, col=patcol[marinacdr$PatientID], main=paste(dr,"_",conc, sep=""), xlab="Leo screen", ylab="Marina screen", asp=1,
-         xlim=c(0,1.5), ylim=c(0,1.5))
-    legend("topleft", legend=bquote(rho^2 == .(round(cor(marinacdr$effectB,marinacdr$LeoValue)^2,2))), bty="n") 
-    } 
-    }
-    }
-
-dev.off()
-```
-
-
-##Comparison of measured single effects with decomposition of combination effect by medpolish
-As QC to see systematic trend in difference of single effect and combination.
-Use th measured viabilities after treatment with both drugs and derive from them the single drug effect by
-$\log(v_{ij})= \log(v_{i})+\log(v_{j}) + r_{ij}$ using medpolish. 
-```{r}
-listCombiEffectMatricesPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
-  filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  melt(id.vars=c("CDrugAbrv", "drBc"), measure.vars = c("effectBC")) %>% acast(CDrugAbrv~drBc)
-})
-listSingleEffectBVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
-  dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  melt(id.vars=c( "drBc"), measure.vars = c("effectB"))
-  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each combi drug the same
-  effectBvec<-dftmp$value
-  names(effectBvec)<-dftmp$drBc
-  effectBvec
-})
-listSingleEffectCVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
-   dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_"))%>%  melt(id.vars=c( "CDrugAbrv"), measure.vars = c("effectC")) 
-  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each base drug the same
-  effectCvec<-dftmp$value
-  names(effectCvec)<-dftmp$CDrugAbrv
-  effectCvec
-})
-medpolish.out.list<-lapply(listCombiEffectMatricesPerPatrep, function(mat) medpolish(log(mat)))
-effectBmedpol<-lapply(medpolish.out.list, function(med) exp(med$col))
-effectCmedpol<-lapply(medpolish.out.list, function(med) exp(med$row))
-
-par(mfrow=c(3,3))
-for( i in 1:length(unique(df4ana$patrep))) {
-  plot(effectBmedpol[[i]], listSingleEffectBVectorsPerPatrep[[i]][names(effectBmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectB"))
-  lines(seq(0,1,0.1),seq(0,1,0.1))
-}
-for( i in 1:length(unique(df4ana$patrep))) {
-  plot(effectCmedpol[[i]], listSingleEffectCVectorsPerPatrep[[i]][names(effectCmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectC"), xlim=c(0,1.2), ylim=c(0,1.2))
-    lines(seq(0,1,0.1),seq(0,1,0.1))
-}
-```
-
-
-##Remove screen 1, outliers and save data
-
-Remove all tempory variables for quality control, keeping only
-- 'DrugBase': contains metadata about basis drugs used (e.g. name concentrations)
-- 'DrugAll': contains metadata about all drugs (e.g. name, target, id, synonyms etc)
-- 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
-- 'SetUp12', 'SetUpRest' contains info about plate structure for the screens
-- 'df4ana' contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
-- 'df4anaAvreplicates' like df4ana but summarized replicates to only one average value
-- directory info, color patients
-
-```{r}
-rm(list=setdiff(ls(), c("DrugBase", "DrugAll", 
-                        "CompleteDF", "SetUp12", 
-                        "SetUpRest", "df4ana",
-                        "df4anaAvreplicates",
-                        "outputdir", "datadir",
-                        "patcol")))
-```
-
-
-As no good DMSO plate available screen1  is dropped for all subsequnt analysis
-```{r}
-CompleteDF<-filter(CompleteDF, ScreenNo!="SS1")
-df4anaAvreplicates<-filter(df4anaAvreplicates,  ScreenNo!="SS1" )
-df4ana<-filter(df4ana, ScreenNo!="SS1")
-patcol<-patcol[names(patcol)%in% df4ana$PatientID]
-```
-
-Detect outliers: For each drug-drug combination patients with viabilities above 1.4 are marked
-```{r}
-OutlierPoints<-filter(df4anaAvreplicates, effectB >1.4 | effectC >1.4 | effectBC>1.4)
-OutlierPoints<-select(OutlierPoints, PatientID, BDrugName, CDrugAbrv) %>% mutate(OutlierCombi=paste(PatientID, BDrugName, CDrugAbrv, sep="_"))
-combi<-paste(df4anaAvreplicates$PatientID,df4anaAvreplicates$BDrugName, df4anaAvreplicates$CDrugAbrv, sep="_")
-df4anaAvreplicatesRmOutliers<-filter(df4anaAvreplicates, !paste(PatientID, BDrugName, CDrugAbrv, sep="_") %in% OutlierPoints$OutlierCombi)
-```
-
-##Data Export
-
-Export Data to be used in DrugCombi_Linkmolecular.Rmd
-```{r}
-save(DrugBase, DrugAll,CompleteDF,df4ana,SetUp12,SetUpRest, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers, file="DrugCombi_VisualisationData.RData")
-```
-
-
-
-#Remove Outliers from futher analysis?
-```{r}
-# df4anaAvreplicates<-df4anaAvreplicatesRmOutliers
-# outputdir<-paste(outputdir, "RemOutl", sep="_")
-# if(!file.exists(outputdir)) dir.create(outputdir)
-```
-
+- 'SetUpLost':  contains info about plate structure for the screens
+- 'df4ana': contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
+- 'df4anaAvrepl': df4ana with average values for replicates
+- 'df4anaAvreplRemOutl': df4anaAvrepl, filtering out values above 1.4
+- 'patcol': color annotation for each patient
 
 #Plots
 
 ## Helper Functions for plots
 Get legend from a ggplot object
 ```{r}
-get_legend<-function(myggplot){
+get_legend <- function(myggplot){
   tmp <- ggplot_gtable(ggplot_build(myggplot))
   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
   legend <- tmp$grobs[[leg]]
@@ -522,15 +88,14 @@ get_legend<-function(myggplot){
 ```
 
 
-##Scatter Plots indivdual effect of base drug vs. combination
+## Scatter Plots indivdual effect of base drug vs. combination
 Included replicates
 ```{r}
-BaseDrugs<-unique(df4ana$BDrugName)
-CombiDrugs<-unique(df4ana$CDrugAbrv)
+BaseDrugs <- unique(df4ana$BDrugName)
+CombiDrugs <- unique(df4ana$CDrugAbrv)
 ```
 
-```{r, eval=T}
-pdf(file.path(outputdir,"BaseAloneVsCombi.pdf"), height = 20, width = 30)
+```{r BaseAloneVsCombi, eval=T, fig.height = 20, fig.width = 30}
 for( drB in BaseDrugs){
   for( conc in paste0("c",1:5)){
   idx = which(df4ana$BDrugName==drB & df4ana$BDrugConcId==conc)
@@ -560,7 +125,6 @@ for( drB in BaseDrugs){
  print(gg)
   }
 }
-dev.off()
 ```
 
 
