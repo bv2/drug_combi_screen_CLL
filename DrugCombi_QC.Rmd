@@ -1,0 +1,339 @@
+---
+title: "CLL drug combinations ex-vivo: Quality Control"
+author: "Britta Velten"
+date: "30 August 2018"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+---
+#Introduction
+
+Takes the data objects created in DrugCombi_RawDataAnalysis.Rmd and performs further QC on the data incldugin comparison to other screens and older analyses.
+
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r, echo=F}
+library(ggplot2)
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(dplyr)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+library(tidyverse)
+```
+
+```{r, echo=F}
+today <- "180830"
+setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+outdir = "out"
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figures", today, "/"))
+```
+
+#Overview over external plots produced in this file:
+
+|plot name | description |
+| ------------- | ------------- |
+| "plateplots.raw.pdf" | Raw Viabilities Measures per plate |
+| "plateplots.norm.pdf" | DMSO-normalized Viability measures per plate |
+| "replicateConsensus.pdf" | Scatterplot of raw viability values, normalized viability values of drug combinations, viabiliy values of base drug alon, viability values of combi drug alone comparing the two replicates of patients in screen 1 and 2 |
+| "ComparisonWithLeoScreen.pdf" | scatterplot of viability values of base drugs comparing Leos and Marinas screens among matching concentrations and across patients that are present in exactly one of Marina's screen |
+
+
+# Preparations
+## Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
+
+```{r}
+load(file.path(outdir, paste0("MarinaCombiData_",today,".RData")))
+```
+
+Loaded dataframe from ImportedData:
+
+* `CompleteDF` contains the raw and normalized values per well/plate/screen
+* `df4ana` contains the normalized values for each single drug and drug-drug combination per sample and concentration)
+* `DrugMetaList` contains info about the drugs used as base and combi compounds
+* `SetUpList` contains the plate setups for the screens
+
+## Setting colors for patients.
+```{r}
+colset = grDevices::colors()[!grepl("^gr(a|e)y", grDevices::colors())]
+patcol = unique(df4ana$PatientID)
+set.seed(2808)
+patcol = setNames(colset[sample.int(length(colset),length(patcol))], nm=patcol)
+```
+
+Color legend for patient:
+```{r legendPatients, eval=F, echo=F}
+ggplot(data=data.frame(X=names(patcol), Y=1)) + geom_bar(aes(x=X, y=Y, fill=X), stat="identity") + scale_fill_manual(values=patcol) + guides(fill=FALSE) + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) + xlab("") + ylab("")
+```
+
+
+
+# Plate plots
+Produces plot of the raw and normalized viability values for each plate based on the data frame containting the per well values (`CompleteDF`).
+
+Raw values:
+```{r plateplots_raw, fig.width=20, fig.height=100, eval=FALSE}
+ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=rawValue)) + scale_fill_gradient(low="white", high="black")
+```
+
+Normalized values:
+```{r plateplots_norm, fig.width=20, fig.height=100, eval=FALSE}
+ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + facet_wrap(~ PlateID, ncol=4) + geom_tile(aes(fill=normalizedValue)) + scale_fill_gradient(low="white", high="black")
+```
+
+
+# Comparison to previous analyses
+
+## Compare to data.frames in Analyses folder (old import)
+The cleaned up script for data import produces the same results as before.
+```{r}
+old <- new.env()
+load("../Analysis/ImportedData.RData", envir = old)
+old$CompleteDF %<>% rename(BaseDrugID = IDBaseDrug,
+                           BaseDrugConcID = concBaseDrug,
+                           BaseDrugConc = ConcValueBaseDrug)
+setdiff(colnames(CompleteDF), colnames(old$CompleteDF))
+# same values in old columns, added some more info on drugs
+stopifnot(all(old$CompleteDF == CompleteDF[, colnames(old$CompleteDF)], na.rm = TRUE))
+stopifnot(all(is.na(old$CompleteDF) == is.na(CompleteDF[, colnames(old$CompleteDF)])))
+
+# same values in common columns added some more info on drugs removed well- or plate-wise info (misleading as only relevent for combination)
+same_cols <- intersect(colnames(df4ana), colnames(old$df4ana))
+setdiff(colnames(df4ana), colnames(old$df4ana))
+setdiff(colnames(old$df4ana),colnames(df4ana))
+old$df4ana$CDrugAbrv <- as.character(old$df4ana$CDrugAbrv)
+stopifnot(all(arrange(old$df4ana[,same_cols], by=CDrugAbrv) == df4ana[, same_cols], na.rm = TRUE))
+stopifnot(all(is.na(arrange(old$df4ana[,same_cols], by=CDrugAbrv)) == is.na(df4ana[,same_cols])))
+
+rm(list = ls(envir = old), envir = old)
+```
+
+## Others
+Further analysis comparison to Leo's screen and Gosia's analyses can be found in Analyses/DrugCombi_Visualisation.Rmd.
+
+
+# Check reproducibility between replicates and average
+Until now the dataframe contains two replicates for each concentration and drug combination in screen 1 and 2. Here, we check the agreement between replicates and then continue with averages.
+
+ Replicates are present in screen 1 and 2: Here every measurement has one replicate
+```{r}
+for (screen in sort(as.character(unique(df4ana$ScreenNo)))){
+df <- filter(df4ana, ScreenNo==screen)  
+checkDup <- select(df, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)
+dupIDX <- which(duplicated(checkDup)|duplicated(checkDup, fromLast=T))
+print(paste(screen,": ", length(dupIDX), " out of ", nrow(df), " duplicated", sep=""))
+}
+```
+
+Annotate replicates
+```{r}
+df4ana$replicate <- sapply(duplicated(select(df4ana, PatientID, CDrugID, BDrugID, ScreenNo, CDrugConc, BDrugConcId)), function(bool) ifelse(bool,2,1))
+sum(df4ana$replicate==2)
+df4ana %<>% mutate(patrep = paste(PatientID, replicate, sep="_"))
+
+CompleteDF$replicate  <- sapply(duplicated(select(CompleteDF, PatientID, BaseDrugID, BaseDrugConcID, CombiDrug, ScreenDate,  BaseDrugConc, BaseDrugName, ScreenNo, CombiDrugConc, CombiDrugID,CombiDrug_longname)), function(bool) ifelse(bool,2,1))
+sum(CompleteDF$replicate==2)
+CompleteDF %<>% mutate(patrep = paste(PatientID, replicate, sep="_"))
+```
+
+```{r replicateConsensus_raw_all, eval=FALSE, echo=FALSE}
+df_reps <- filter(CompleteDF, ScreenNo %in% c("SS1","SS2")) %>%
+  filter(BaseDrugID != "DM") %>% # remove control wells (no Drug B nor C)
+  filter(BaseDrugID != "DM+") %>% # remove wells with only C (muliple wells-average)
+  select(-starts_with("Well")) %>%
+  select(-patrep) %>%
+  select(-normalizedValue) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="rawValue")
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+   scale_color_manual(values = patcol) +
+  geom_abline(intercept=0,slope=1, lty="dashed") +
+  geom_text(x =100000, y =600000, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +
+  theme_bw() + guides(col=FALSE) + xlab("raw intensities  (replicate 1)") + ylab("raw intensities (replicate 2)") +coord_fixed()
+```
+
+Check agreement between replicates for the drug-drug combination values (rawValueBC or effectBC), output: "replicateConsensus.pdf"
+```{r replicateConsensus_raw}
+# raw drug-drug combination intensities
+df_reps <- filter(df4ana, ScreenNo %in% c("SS1","SS2")) %>%
+  select(-starts_with("effect")) %>%
+  select(-patrep) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="rawValueBC")
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+   scale_color_manual(values = patcol) +
+  geom_abline(intercept=0,slope=1, lty="dashed") +
+  geom_text(x =100000, y =600000, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +
+  theme_bw() + guides(col=FALSE) + xlab("raw intensities  (replicate 1)") + ylab("raw intensities (replicate 2)") +coord_fixed()
+```
+
+```{r replicateConsensus_normalized}
+# normalized drug-drug combination viabilities
+df_reps <- filter(df4ana, ScreenNo %in% c("SS1","SS2")) %>%
+  select(-c(effectB, effectC, patrep, rawValueBC)) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="effectBC")
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+  scale_color_manual(values = patcol)+ theme_bw() + 
+    geom_abline(intercept=0,slope=1, lty="dashed") +
+    geom_text(x =0.3, y =1.2, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +
+  guides(col=FALSE) + xlab("normalized viabilities (replicate 1)") + ylab("normalized viabilities (replicate 2)")+coord_fixed()
+
+# normalized base drug viabilities
+df_reps <- filter(df4ana, ScreenNo %in% c("SS1","SS2")) %>%
+  select(-c(effectBC, effectC, patrep, rawValueBC)) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="effectB")
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+  scale_color_manual(values = patcol)+ theme_bw() + 
+    geom_abline(intercept=0,slope=1, lty="dashed") +
+      geom_text(x =0.3, y =1.2, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +
+  guides(col=FALSE) + xlab("normalized viabilities (replicate 1)") + ylab("normalized viabilities (replicate 2)")+coord_fixed()
+
+# normalized combi drug viabilities
+df_reps <- filter(df4ana, ScreenNo %in% c("SS1","SS2")) %>%
+  select(-c(effectBC, effectB, patrep, rawValueBC)) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="effectC")
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+  scale_color_manual(values = patcol)+ theme_bw() + 
+    geom_abline(intercept=0,slope=1, lty="dashed") +
+      geom_text(x =0.7, y =1.2, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +
+  guides(col=FALSE) + xlab("normalized viabilities (replicate 1)") + ylab("normalized viabilities (replicate 2)")+coord_fixed()
+```
+
+Note: last plot should be a straight line as same DM+ wells used for effectC and only one value per plate
+
+Only screen 2 (as screen 1 will be dropped)
+Check agreement between replicates, output: "replicateConsensus.pdf"
+```{r replicateConsensus_raw_screen2}
+# raw drug-drug combination intensities
+df_reps <- filter(df4ana, ScreenNo %in% c("SS2")) %>%
+  select(-starts_with("effect")) %>%
+  select(-patrep) %>%
+  mutate(replicate = paste0("rep",replicate)) %>%
+  spread(key="replicate", value="rawValueBC") 
+
+ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point(size=3) +
+   scale_color_manual(values = patcol) +
+  geom_abline(intercept=0,slope=1, lty="dashed") +
+  geom_text(x =100000, y =600000, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =7) +
+  theme_bw(base_size = 20) + guides(col=FALSE) + xlab("raw intensities  (replicate 1)") + ylab("raw intensities (replicate 2)") +coord_fixed()
+```
+
+Calculate average value for replicates
+```{r}
+df4anaAvreplicates <- df4ana %>%
+  group_by(CDrugAbrv, CDrugName, CDrugID, CDrugConc, CDrugNameLong, BDrugName, BDrugID, BDrugConc, BDrugConcId, PatientID, ScreenDate,ScreenNo) %>%
+  summarise(effectBC = mean(effectBC),
+            effectB = mean(effectB),
+            effectC = mean(effectC),
+            rawValueBC = mean(rawValueBC))
+```
+
+# Medpolish: Comparison of measured single effects with decomposition of combination effect by medpolish
+As QC to see systematic trend in difference of single effect and combination.
+Use th measured viabilities after treatment with both drugs and derive from them the single drug effect by
+$\log(v_{ij})= \log(v_{i})+\log(v_{j}) + r_{ij}$ using medpolish. 
+```{r medpolish}
+listCombiEffectMatricesPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+  filter(df4ana, patrep==pr) %>% 
+    mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  
+    melt(id.vars=c("CDrugAbrv", "drBc"), measure.vars = c("effectBC")) %>% acast(CDrugAbrv~drBc)
+})
+listSingleEffectBVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+  dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_")) %>%  melt(id.vars=c( "drBc"), measure.vars = c("effectB"))
+  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each combi drug the same
+  effectBvec<-dftmp$value
+  names(effectBvec)<-dftmp$drBc
+  effectBvec
+})
+listSingleEffectCVectorsPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
+   dftmp<-filter(df4ana, patrep==pr) %>% mutate(drBc=paste(BDrugID, BDrugConcId, sep="_"))%>%  melt(id.vars=c( "CDrugAbrv"), measure.vars = c("effectC")) 
+  dftmp<-dftmp[!duplicated(dftmp),] #remove duplicated rows as for each base drug the same
+  effectCvec<-dftmp$value
+  names(effectCvec)<-dftmp$CDrugAbrv
+  effectCvec
+})
+medpolish.out.list <- lapply(listCombiEffectMatricesPerPatrep, function(mat) medpolish(log(mat)))
+effectBmedpol <- lapply(medpolish.out.list, function(med) exp(med$col))
+effectCmedpol <- lapply(medpolish.out.list, function(med) exp(med$row))
+
+par(mfrow=c(3,3))
+for( i in 1:length(unique(df4ana$patrep))) {
+  plot(effectBmedpol[[i]], listSingleEffectBVectorsPerPatrep[[i]][names(effectBmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectB"))
+  lines(seq(0,1,0.1),seq(0,1,0.1))
+}
+for( i in 1:length(unique(df4ana$patrep))) {
+  plot(effectCmedpol[[i]], listSingleEffectCVectorsPerPatrep[[i]][names(effectCmedpol[[i]])], xlab="medpolished", ylab="measured", main=paste("effectC"), xlim=c(0,1.2), ylim=c(0,1.2))
+    lines(seq(0,1,0.1),seq(0,1,0.1))
+}
+```
+
+
+# Filtering and data export
+
+## Drop Screen 1
+As no good DMSO plate available screen1 is dropped for all subseqeunt analysis
+```{r}
+CompleteDF <- filter(CompleteDF, ScreenNo!="SS1")
+df4anaAvreplicates <- filter(df4anaAvreplicates,  ScreenNo!="SS1" )
+df4ana <- filter(df4ana, ScreenNo!="SS1")
+patcol <- patcol[names(patcol)%in% df4ana$PatientID]
+```
+
+## Outliers
+Detect outliers: For each drug-drug combination patients with viabilities above 1.4 are removed.
+```{r outliers}
+max(df4anaAvreplicates$effectBC)
+max(df4anaAvreplicates$effectB)
+max(df4anaAvreplicates$effectC)
+th <- 1.4
+
+ggplot(df4anaAvreplicates, aes(x=effectBC)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
+ggplot(df4anaAvreplicates, aes(x=effectB)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
+ggplot(df4anaAvreplicates, aes(x=effectC)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
+
+OutlierPoints <- filter(df4anaAvreplicates, effectB >th | effectC >th | effectBC>th)
+df4anaAvreplicatesRmOutliers<-filter(df4anaAvreplicates, effectB <=th & effectC  <= th & effectBC <= th)
+```
+
+
+Remove Outliers from futher analysis
+```{r}
+df4anaAvreplicates <- df4anaAvreplicatesRmOutliers
+```
+
+
+#Data Export
+
+Export Data to be used in DrugCombi_Linkmolecular.Rmd
+```{r}
+save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,
+     file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
+```
+
+
+#SessionInfo
+```{r}
+sessionInfo()
+```
+
