@@ -12,3 +12,6 @@ A. Pre-processing
 - DrugCombi_AddOmicsData.Rmd: Check available omics data for the patients included in the combi screen and show an overview of genetic heterogeneity
 
 B. Visualization of base drug effects
+- DrugCombi_BaseAlone.Rmd: Analyse effect of base compounds alone, associations to most frequent mutations and heatmaps
+
+
