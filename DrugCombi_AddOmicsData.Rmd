@@ -118,19 +118,41 @@ dfMuts %<>% mutate(status = ifelse(status==1, "mutated", "unmutated"))
 dfMuts %<>% mutate(nOcc = nOccur[mutation])
 dfMuts %<>% mutate(mutation = factor(mutation, level = names(sort(nOccur))))
 dfMuts %<>% filter( mutation %in% names(nOccur)[nOccur>=3])
-gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile() +
+gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile(col="black") +
   scale_fill_manual(values=c(mutated="black", unmutated="white")) + 
   theme(axis.text.x = element_blank(),
         axis.ticks = element_blank(), 
         panel.background = element_blank(),
+        text = element_text(size=16),
+        legend.position = "top",
+        legend.key.size = unit(0.4, units="cm"),
+        legend.text = element_text(size=12),
+        legend.title =  element_text(size=12),
+        plot.margin =  unit(c(0,0,-0.2,0), units="cm")) +
+  xlab("") + ylab("") + guides(fill=guide_legend(title=""))
+
+ gg1 
+
+# gg2 <- ggplot(dfMuts, aes(x=mutation, y=nOcc)) +
+#   geom_bar(stat="identity", fill ="cornflowerblue") +
+#   theme(plot.margin =  unit(c(0,0,0,-2), units="cm"),
+#         panel.background = element_blank(),
+#         text = element_blank(),
+#         axis.ticks = element_blank()
+#         ) + coord_flip()
+
+gg3 <- ggplot(dfMuts, aes(x=PatientID, y=1, fill=PatientID))+ geom_tile(col="black") +
+  scale_fill_manual(values=patcol) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks = element_blank(), 
+        panel.background = element_blank(),
         text = element_text(size=18),
-        legend.position = "top") +
+         axis.text.y = element_blank(),
+        plot.margin =  unit(c(-0.2,0,0,0), units="cm")) +
+  guides(fill=FALSE) + 
   xlab("Patient sample") + ylab("")
 
-gg1 
-
-gg2 <- ggplot(dfMuts, aes(x=mutation, y=nOcc)) +
-  geom_bar(stat="identity", fill ="cornflowerblue") + theme_void() + coord_flip()
+cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb", rel_heights = c(5,0.35), rel_widths = c(5,1))
 ```
 
 ```{r}
