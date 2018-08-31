@@ -33,6 +33,7 @@ library(pheatmap)
 library(magrittr)
 library(lattice)
 library(tidyverse)
+options(stringsAsFactors = FALSE)
 ```
 
 ```{r}
@@ -45,18 +46,12 @@ if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
-#Overview over external plots produced in this file:
-
-|plot name | description |
-| ------------- | ------------- |
-|"HeatmapBaseDrugByDrug.pdf"| Heatmap based on correlation bewteen viabilities values of base drugs, clustered by correlation distances|
-|"HeatmapBaseDrugByPatients.pdf"|Heatmap based on viabilities values of base drugs for each patient, clustered by correlation distances|
-|"HeatmapBaseDrugByPatients_zscore.pdf"|Heatmap based on z-score viabilities values of base drugs for each patient clustered by correlation distance|
 
 #Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
 
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("OmicsData",today,".RData")))
 ```
 
 ```{r}
@@ -65,40 +60,172 @@ df4ana <- df4anaAvreplicatesRmOutliers
 rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
 ```
 
-# s
-#Heatmap Base-DrugxDrug and PatientxDrugs
+# Construct dataframe for base effect alone
+Note that each experiment consists of 3 combination partner plus DMSO. Therefore, all patient samples with more than 3 combinaiton partners will have several effect values of the DMSO plate from each experiment. In the following we will average those values. For the combination studies comparisons are made within the experiments taken the value from the corresponding DMSO plate.
+
 ```{r}
-dftmp<-select(df4anaAvreplicates, effectB, BDrugName, BDrugConcId,PatientID, CDrugID )
-dftmp$Bid<-paste(dftmp$BDrugName, dftmp$BDrugConcId, sep="_")
-matrixBxP<-matrix(NA, ncol=length(unique(dftmp$Bid)), nrow=length(unique(dftmp$PatientID)))
-colnames(matrixBxP)<-unique(dftmp$Bid)
-rownames(matrixBxP)<-unique(dftmp$PatientID)
-for( drB in unique(dftmp$Bid)) {
-  tmpB<-filter(dftmp, Bid==drB)
-  select(tmpB, -CDrugID)[!duplicated(select(tmpB, -CDrugID)),]
-  matrixBxP[as.character(tmpB$PatientID),drB]<-tmpB$effectB
-}
-#remove patients with NAs (in at least on screen outliers)
-matrixBxP<-matrixBxP[apply(matrixBxP,1,function(r) !any(is.na(r))),]
-pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_cor.pdf"), width=30, height=30, onefile=FALSE)
-pheatmap(matrixBxP, main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
-         clustering_distance_cols="correlation",
+df_effectB <- df4ana %>% select(starts_with("BDrug"), PatientID, effectB)
+
+# this contains multiple values for most patient, drug, concentration pairs:
+nrow(df_effectB)
+52*32*5
+df <- df_effectB %>%
+  group_by(BDrugName, BDrugID, BDrugConcId,BDrugConc,PatientID) %>%
+  summarize(n_effectB = length(effectB)) 
+table(df$n_effectB)
+
+#summarize by mean
+df_effectB %<>%  group_by(BDrugName, BDrugID, BDrugConcId,BDrugConc,PatientID) %>%
+  summarize(effectB = mean(effectB))%>%
+  ungroup()
+nrow(df_effectB)
+```
+
+# Test for assciations of base effect to mutations
+```{r}
+df_effectB_vs_muts <- left_join(df_effectB,
+                                gather(dfMuts, key="mutation", value="status", -PatientID), by="PatientID")
+df_effectB_vs_muts <- df_effectB_vs_muts[!duplicated(df_effectB_vs_muts),] #remove duplicates, as info is contained in each combi durg
+df_pvals_effectB_vs_muts <- group_by(df_effectB_vs_muts, BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation) %>%
+  summarize(pval = t.test(effectB ~ status, var.equal= TRUE)$p.value,
+            mean.diff = diff(t.test(effectB ~ status, var.equal= TRUE)$estimate))
+df_pvals_effectB_vs_muts %<>% mutate(pval.adj = p.adjust(pval, method="BH"))
+hist(df_pvals_effectB_vs_muts$pval)
+```
+
+## Volcanoe plot
+```{r volcanoe_base}
+# take only most significant concentration for plotting (FDR control is on level of single concentrations)
+df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
+  summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
+df_pvals_max %<>% mutate(sig = pval.adj<0.01, col = mean.diff>0)
+
+mostCommonMuts <- colSums(dfMuts[,-1]) > 10
+mostCommonMuts <- names(mostCommonMuts)[which(mostCommonMuts)]
+
+ggplot(filter(df_pvals_max,mutation %in% mostCommonMuts), aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
+```
+
+## List of significant pharmacogenomic interactions
+```{r}
+df_sign <- df_pvals_effectB_vs_muts %>% filter(pval.adj < 0.01)
+df_nconc <- df_sign %>% group_by(BDrugName, mutation) %>% summarize(nconc =n())
+
+# TP53
+df_signTP53 <- df_sign %>% filter(mutation == "TP53")
+
+# IGHV
+df_signIGHV <- df_sign %>% filter(mutation == "IGHV")
+```
+
+## Boxplots
+Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at an FDR of 1%.
+```{r boxplot_base_TP53}
+df_effectB_vs_muts %>% filter(mutation == "TP53", BDrugName %in% df_signTP53$BDrugName) %>% 
+  mutate(status = ifelse(status ==0, "wt","mut")) %>%
+  ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability")
+
+```
+
+```{r, boxplot_base_IGHV}
+df_effectB_vs_muts %>% filter(mutation == "IGHV", BDrugName %in% df_signIGHV$BDrugName) %>% 
+    mutate(status = ifelse(status ==0, "U-CLL","M-CLL")) %>%
+  ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="IGHV"))+ xlab("Concentration") +ylab("viability")
+```
+
+
+## Heatmap on base viability values
+```{r}
+df_effectB %<>% mutate(BDrugNameConc = paste(BDrugName, BDrugConcId, sep="_"))
+effectB_mat <- df_effectB %>% 
+  select(BDrugNameConc, PatientID, effectB)  %>%
+  spread(key=BDrugNameConc, value=effectB) %>% 
+  column_to_rownames("PatientID") %>%
+  as.matrix()
+```
+
+## Base-DrugxDrug
+```{r heatmap_base_drug_drug}
+pheatmap(cor(effectB_mat, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10, treeheight_col = 10)
+```
+
+
+Average over concentrations
+```{r heatmap_base_drug_drug_av}
+effectB_mat_av <- df_effectB %>% 
+  select(BDrugName, PatientID, effectB)  %>%
+  group_by(BDrugName,PatientID) %>%
+  summarise(effectB = mean(effectB, na.rm=TRUE)) %>%
+  ungroup() %>%
+  spread(key=BDrugName, value=effectB) %>% 
+  column_to_rownames("PatientID") %>%
+  as.matrix()
+pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10, treeheight_col = 10)
+```
+
+##PatientxDrugs
+```{r heatmap_base_patient_drug}
+# outlying values cut off at 1.4
+effectB_mat[is.na(effectB_mat)] <- 1.4
+
+# add genetic background
+dfanno <- dfMuts %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
+dfanno <- as.data.frame(ifelse(dfanno==1, "mut", "wt"))
+
+# set colors for mutation status
+cols_mut        <- c("white", "black")
+names(cols_mut) <- c("wt", "mut")
+anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
+names(anno_colors) <- colnames(dfanno)
+
+ pheatmap(effectB_mat, na_col="gray", clustering_distance_rows="correlation",
+         clustering_distance_cols = "correlation",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
-         breaks=seq(0,1.4,0.01)
-)
-dev.off()
+         breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = FALSE,
+         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)
+```
 
-pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_zscore.pdf"), width=30, height=30, onefile=FALSE)
-Z_matrixBxP<-apply(matrixBxP,2,scale)
-rownames(Z_matrixBxP)<-rownames(matrixBxP)
-pheatmap(Z_matrixBxP, main = "Z-score normalized viabilty of base drugs", clustering_distance_rows="correlation",
-         clustering_distance_cols="correlation")
-dev.off()
+Average over concentrations
+```{r heatmap_base_patient_drug_av}
+effectB_mat_av <- df_effectB %>% 
+  select(BDrugName, PatientID, effectB)  %>%
+  group_by(BDrugName,PatientID) %>%
+  summarise(effectB = mean(effectB, na.rm=TRUE)) %>%
+  ungroup() %>%
+  spread(key=BDrugName, value=effectB) %>% 
+  column_to_rownames("PatientID") %>%
+  as.matrix()
 
-pdf(file.path(outputdir, "HeatmapBaseDrugByDrug.pdf"), width=30, height=30, onefile=FALSE)
-pheatmap(cor(matrixBxP), main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
-         clustering_distance_cols="correlation")
-dev.off()
+# add genetic background
+dfanno <- dfMuts %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
+dfanno <- as.data.frame(ifelse(dfanno==1, "mut", "wt"))
+
+# set colors for mutation status
+cols_mut        <- c("white", "black")
+names(cols_mut) <- c("wt", "mut")
+anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
+names(anno_colors) <- colnames(dfanno)
+
+ pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="correlation",
+         clustering_distance_cols = "correlation",
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+         breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
+         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)
+```
+
+
+# Single correlation values
+```{r}
+# navitoclax - venetoclax
+cor(as.numeric(effectB_mat[,grep("ABT-263", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("Abt-199", colnames(effectB_mat))]))
+
+cor(as.numeric(effectB_mat[,grep("YM155", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("SNS-032", colnames(effectB_mat))]))
 
 ```
 
