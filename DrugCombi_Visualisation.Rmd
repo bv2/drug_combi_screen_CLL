@@ -39,7 +39,9 @@ today<-"180830"
 setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
 datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 outdir <- "out"
-knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresViz", today, "/"))
+figdir <- paste0("figuresViz", today, "/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
 #Overview over external plots produced in this file:
@@ -74,6 +76,44 @@ Loaded dataframe from MarinaCombiDataAfterQC_:
 - 'df4anaAvreplRemOutl': df4anaAvrepl, filtering out values above 1.4
 - 'patcol': color annotation for each patient
 
+```{r, echo=FALSE}
+# check consistency with old objects
+old <- new.env()
+load("../Analysis/DrugCombi_VisualisationData.RData", envir = old)
+
+# same values in common columns added some more info on drugs removed well- or plate-wise info (misleading as only relevent for combination)
+same_cols <- intersect(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
+setdiff(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
+setdiff(colnames(old$df4anaAvreplicatesRmOutliers),colnames(df4anaAvreplicatesRmOutliers))
+
+# anti_join(x,y) keeps all rows of x that have no matching values in y
+stopifnot(nrow(anti_join(old$df4anaAvreplicates, df4anaAvreplicates)) ==0)
+stopifnot(nrow(anti_join(df4anaAvreplicates, old$df4anaAvreplicates)) ==0)
+# all rows in old object are in new object
+anti_join(old$df4anaAvreplicatesRmOutliers, df4anaAvreplicatesRmOutliers)
+# 295 rows are additionally in new object because previously all values for drug-drug combination with outliers were removed
+diff_df <- anti_join(df4anaAvreplicatesRmOutliers, old$df4anaAvreplicatesRmOutliers)
+
+OutlierPoints <- filter(df4anaAvreplicates, effectB >1.4 | effectC >1.4 | effectBC>1.4)
+stopifnot(nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) ==nrow(OutlierPoints))
+
+OutlierPoints <- select(OutlierPoints, PatientID, BDrugName, CDrugAbrv) %>%
+  mutate(OutlierCombi=paste(PatientID, BDrugName, CDrugAbrv, sep="_"))
+combi <- paste(df4anaAvreplicates$PatientID,df4anaAvreplicates$BDrugName, df4anaAvreplicates$CDrugAbrv, sep="_")
+stopifnot(sum(combi %in% OutlierPoints$OutlierCombi) == nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) + nrow(diff_df))
+```
+
+```{r}
+# discard outliers for further analyses, only use averaged values for replicates
+df4ana <- df4anaAvreplicatesRmOutliers
+rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
+```
+
+# Add combination indices
+```{r}
+df4ana %<>% mutate(effectAdd = effectB * effectC)
+```
+
 #Plots
 
 ## Helper Functions for plots
@@ -89,29 +129,20 @@ get_legend <- function(myggplot){
 
 
 ## Scatter Plots indivdual effect of base drug vs. combination
-Included replicates
 ```{r}
 BaseDrugs <- unique(df4ana$BDrugName)
 CombiDrugs <- unique(df4ana$CDrugAbrv)
 ```
 
 ```{r BaseAloneVsCombi, eval=T, fig.height = 20, fig.width = 30}
+BaseDrugs4paper <- 
 for( drB in BaseDrugs){
   for( conc in paste0("c",1:5)){
-  idx = which(df4ana$BDrugName==drB & df4ana$BDrugConcId==conc)
-  
-  df4plot<-df4ana[idx,]
-  df4plot$indiv<-df4plot$effectB
-  df4plot$combi<-df4plot$effectBC
-  range = c(0,1.25)
 
-  df4plot$shape = with(df4plot, ifelse( (indiv<range[1] | indiv>range[2]) | combi<range[1] | combi>range[2], "censored", "raw"))
-  df4plot$shape = paste(df4plot$shape, df4plot$rep, sep="_")
+  df4plot <- filter(df4ana, BDrugName==drB, BDrugConcId==conc)
+  range = c(0, filter_th)
 
-  df4plot$indivcens = ifelse(df4plot$indiv < range[1], range[1], ifelse(df4plot$indiv > range[2], range[2], df4plot$indiv))
-  df4plot$combicens = ifelse(df4plot$combi < range[1], range[1], ifelse(df4plot$combi > range[2], range[2], df4plot$combi))
-  
- gg<- ggplot(df4plot, aes(x=indivcens, y=combicens, color=PatientID, shape=shape))+
+  gg <- ggplot(df4plot, aes(x=effectB, y=effectBC, color=PatientID))+
     geom_point(size=2, alpha=0.7)+
     geom_hline(aes(yintercept=0), colour="grey", linetype="dashed") +
     geom_vline(aes(xintercept=0), colour="grey", linetype="dashed") +
@@ -119,8 +150,9 @@ for( drB in BaseDrugs){
     geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
     ggtitle(paste("Base drug:", drB, conc))+ 
     coord_fixed() + scale_x_continuous(limits=range) + 
-    scale_y_continuous( limits=range)+theme_bw()+
-    scale_shape_manual(values=c(raw_1=16, censored_1=17,raw_2=1, censored_2=2)) 
+    scale_y_continuous( limits=range)+theme_bw() +
+    xlab("viability - base drug") + ylab("viabiliy - drug combination") +
+    guides(col=FALSE)
     
  print(gg)
   }
@@ -128,62 +160,46 @@ for( drB in BaseDrugs){
 ```
 
 
-##Scatter Plots combined effect vs. additive effect
+## Scatter Plots combined effect vs. additive effect
 Included replicates
-```{r, eval=T}
-pdf(file.path(outputdir,"CombiVsAddEffect.pdf"), height = 10, width = 30)
+```{r, CombiVsAddEffect, fig.height = 10, fig.width = 30}
 for( drB in BaseDrugs){
-  # for( conc in paste0("c",1:5)){
-  # idx = which(df4ana$BDrugName==drB & df4ana$BDrugConcId==conc)
-    idx = which(df4ana$BDrugName==drB)
-
-  df4plot<-df4ana[idx,]
-  df4plot$add<-df4plot$effectB*df4plot$effectC
-  df4plot$combi<-df4plot$effectBC
-  range = c(0,1.25)
-
-  df4plot$shape = with(df4plot, ifelse( (add<range[1] | add>range[2]) | combi<range[1] | combi>range[2], "censored", "raw"))
-  df4plot$shape = paste(df4plot$shape, df4plot$rep, sep="_")
-
-  df4plot$addcens = ifelse(df4plot$add < range[1], range[1], ifelse(df4plot$add > range[2], range[2], df4plot$add))
-  df4plot$combicens = ifelse(df4plot$combi < range[1], range[1], ifelse(df4plot$combi > range[2], range[2], df4plot$combi))
-  
-  for(drC in unique(df4plot$CDrugAbrv)){
- gg<- ggplot(filter(df4plot, CDrugAbrv==drC), aes(x=addcens, y=combicens, color=PatientID, shape=shape))+
-    geom_point(size=10, alpha=0.7)+
-    geom_hline(aes(yintercept=0), colour="grey", linetype="dashed") +
-    geom_vline(aes(xintercept=0), colour="grey", linetype="dashed") +
-    scale_color_manual(values=patcol)+facet_wrap(~BDrugConcId  , ncol=5) +
-    geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
-    ggtitle(paste("Base drug:", drB, "Combination drug:", drC))+ 
-    coord_fixed() + scale_x_continuous(limits=range) + 
-    scale_y_continuous( limits=range)+theme_bw(base_size = 30)+
-    theme(axis.text = element_text(size = 30), legend.text= element_text(size = 30))+
-    scale_shape_manual(values=c(raw_1=16, censored_1=17,raw_2=1, censored_2=2))  +
-   ylab("viability - measured drug combination")+xlab("viability - theoretical additive model")+
-    # annotate("text", x=0.3, y=0.8, label= "antagonistic")+
-    annotate("text", x=0.8, y=0.3, label= "synergy", size=9)
-    #+ annotate("text", x=1, y=1, label= "additive")
+  for(drC in CombiDrugs){
+      range = c(0, filter_th)
+     df4plot <-  filter(df4ana, CDrugAbrv==drC, BDrugName==drB)
+    gg <- ggplot(df4plot, aes(x=effectAdd, y=effectBC, color=PatientID))+
+        geom_point(size=10, alpha=0.7)+
+        geom_hline(aes(yintercept=0), colour="grey", linetype="dashed") +
+        geom_vline(aes(xintercept=0), colour="grey", linetype="dashed") +
+        scale_color_manual(values=patcol)+facet_wrap(~BDrugConcId  , ncol=5) +
+        geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
+        ggtitle(paste("Base drug:", drB, "Combination drug:", drC))+ 
+        coord_fixed() + scale_x_continuous(limits=range) + 
+        scale_y_continuous( limits=range)+theme_bw(base_size = 30)+
+        theme(axis.text = element_text(size = 30), legend.text= element_text(size = 30))+
+        scale_shape_manual(values=c(raw_1=16, censored_1=17,raw_2=1, censored_2=2))  +
+       ylab("viability - measured drug combination")+xlab("viability - theoretical additive model")+
+        # annotate("text", x=0.3, y=0.8, label= "antagonistic")+
+        annotate("text", x=0.8, y=0.3, label= "synergy", size=9) + 
+        guides(col=FALSE)
+        #+ annotate("text", x=1, y=1, label= "additive")
     
  print(gg)
   }
 }
 
-dev.off()
 ```
 
+
+## Curve over concentrations
 ```{r, echo=T}
 source("plotThings.R")
 ```
 
-##Note
-For the following plots replicate average value is used
-
-## Curve over concentrations
 Curve of combined effect over all concentrations of the base drug (solid) and curve of theoretical additive effect over all concentrations of the base drug (dashed)
 ```{r, eval=T}
-plotThings("Curves",CombiDrugs=CombiDrugs,
-                     BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
+plotThings("Curves", CombiDrugs=CombiDrugs,
+                     BaseDrugs=BaseDrugs, df4anaAvreplicates=df4ana, outputdir=figdir)
 ```
 
 ## Area between curves of theoretical additive effect and true combined effect
@@ -262,7 +278,7 @@ print(gg)
 dev.off()
 ```
 
-##ABC median across Patients
+## ABC median across Patients
 needs some scaling to concentrations considered to be interpretable as a value
 ```{r, eval=T}
 CombiBenefitABCMedian<-plotThings("CombiBenefit",CombiDrugs=CombiDrugs,
@@ -270,7 +286,7 @@ CombiBenefitABCMedian<-plotThings("CombiBenefit",CombiDrugs=CombiDrugs,
 write.csv(CombiBenefitABCMedian, file.path(outputdir,"ABCMedian.csv"))
 ```
 
-#Calculate CI index accoridng to highest single agent and Bliss
+# Calculate CI index accoridng to highest single agent and Bliss
 Set CI to one if no effect of combination observed. ?
 ```{r}
 df4CI<-mutate(df4anaAvreplicates,
@@ -331,7 +347,7 @@ MedianDf4CI<-df4CI%>% filter(CDrugAbrv==drC) %>%
                    medianViabBC=median(viabBCper),medianthViabBC=median(thviabBCper),
                    MADViabB=mad(viabBper),MADViabC=mad(viabCper),
                    MADViabBC=mad(viabBCper), MADthViabBC=mad(thviabBCper))
-                                                                                            MedianDf4CI$BDrugConcId<-factor(MedianDf4CI$BDrugConcId, levels=rev(levels(MedianDf4CI$BDrugConcId)))          
+ MedianDf4CI$BDrugConcId<-factor(MedianDf4CI$BDrugConcId, levels=rev(levels(MedianDf4CI$BDrugConcId)))          
                                                                                                       
 gg<-ggplot(ungroup(MedianDf4CI), aes(x=BDrugConcId, group=BDrugName)) +
   geom_line(aes(y=medianViabBC, colour="BC"))+geom_point(aes(y=medianViabBC, colour="BC"))+geom_pointrange(aes(y=medianViabBC, ymin=medianViabBC-MADViabBC,ymax=medianViabBC+MADViabBC, colour="BC"))+

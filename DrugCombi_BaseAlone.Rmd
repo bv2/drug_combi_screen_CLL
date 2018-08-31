@@ -1,0 +1,109 @@
+---
+title: "CLL drug combinations ex-vivo: Analyse effect of base drugs alone"
+author: "Britta Velten"
+date: "31 August 2018"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+---
+
+#Introduction
+
+This file analyses the data from the combination screen for combination with DMSO. (Effect of base drug alone)
+
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r, echo=F}
+library(ggplot2)
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(dplyr)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+library(tidyverse)
+```
+
+```{r}
+today <- "180830"
+setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+outdir <- "out"
+figdir <- paste0("figuresBaseAlone", today, "/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
+```
+
+#Overview over external plots produced in this file:
+
+|plot name | description |
+| ------------- | ------------- |
+|"HeatmapBaseDrugByDrug.pdf"| Heatmap based on correlation bewteen viabilities values of base drugs, clustered by correlation distances|
+|"HeatmapBaseDrugByPatients.pdf"|Heatmap based on viabilities values of base drugs for each patient, clustered by correlation distances|
+|"HeatmapBaseDrugByPatients_zscore.pdf"|Heatmap based on z-score viabilities values of base drugs for each patient clustered by correlation distance|
+
+#Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
+
+```{r}
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+```
+
+```{r}
+# discard outliers for further analyses, only use averaged values for replicates
+df4ana <- df4anaAvreplicatesRmOutliers
+rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
+```
+
+# s
+#Heatmap Base-DrugxDrug and PatientxDrugs
+```{r}
+dftmp<-select(df4anaAvreplicates, effectB, BDrugName, BDrugConcId,PatientID, CDrugID )
+dftmp$Bid<-paste(dftmp$BDrugName, dftmp$BDrugConcId, sep="_")
+matrixBxP<-matrix(NA, ncol=length(unique(dftmp$Bid)), nrow=length(unique(dftmp$PatientID)))
+colnames(matrixBxP)<-unique(dftmp$Bid)
+rownames(matrixBxP)<-unique(dftmp$PatientID)
+for( drB in unique(dftmp$Bid)) {
+  tmpB<-filter(dftmp, Bid==drB)
+  select(tmpB, -CDrugID)[!duplicated(select(tmpB, -CDrugID)),]
+  matrixBxP[as.character(tmpB$PatientID),drB]<-tmpB$effectB
+}
+#remove patients with NAs (in at least on screen outliers)
+matrixBxP<-matrixBxP[apply(matrixBxP,1,function(r) !any(is.na(r))),]
+pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_cor.pdf"), width=30, height=30, onefile=FALSE)
+pheatmap(matrixBxP, main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation",
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+         breaks=seq(0,1.4,0.01)
+)
+dev.off()
+
+pdf(file.path(outputdir, "HeatmapBaseDrugByPatients_zscore.pdf"), width=30, height=30, onefile=FALSE)
+Z_matrixBxP<-apply(matrixBxP,2,scale)
+rownames(Z_matrixBxP)<-rownames(matrixBxP)
+pheatmap(Z_matrixBxP, main = "Z-score normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+dev.off()
+
+pdf(file.path(outputdir, "HeatmapBaseDrugByDrug.pdf"), width=30, height=30, onefile=FALSE)
+pheatmap(cor(matrixBxP), main = "Normalized viabilty of base drugs", clustering_distance_rows="correlation",
+         clustering_distance_cols="correlation")
+dev.off()
+
+```
+
+#SessionInfo
+```{r}
+sessionInfo()
+```
+

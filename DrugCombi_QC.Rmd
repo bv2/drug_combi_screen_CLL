@@ -34,7 +34,7 @@ library(lattice)
 library(tidyverse)
 ```
 
-```{r, echo=F}
+```{r}
 today <- "180830"
 setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
 datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
@@ -245,12 +245,13 @@ df4anaAvreplicates <- df4ana %>%
   summarise(effectBC = mean(effectBC),
             effectB = mean(effectB),
             effectC = mean(effectC),
-            rawValueBC = mean(rawValueBC))
+            rawValueBC = mean(rawValueBC)) %>%
+  ungroup()
 ```
 
 # Medpolish: Comparison of measured single effects with decomposition of combination effect by medpolish
 As QC to see systematic trend in difference of single effect and combination.
-Use th measured viabilities after treatment with both drugs and derive from them the single drug effect by
+Use the measured viabilities after treatment with both drugs and derive from them the single drug effect by
 $\log(v_{ij})= \log(v_{i})+\log(v_{j}) + r_{ij}$ using medpolish. 
 ```{r medpolish}
 listCombiEffectMatricesPerPatrep<-lapply(unique(df4ana$patrep), function(pr) {
@@ -288,7 +289,7 @@ for( i in 1:length(unique(df4ana$patrep))) {
 ```
 
 
-# Filtering and data export
+# Filtering
 
 ## Drop Screen 1
 As no good DMSO plate available screen1 is dropped for all subseqeunt analysis
@@ -305,31 +306,62 @@ Detect outliers: For each drug-drug combination patients with viabilities above 
 max(df4anaAvreplicates$effectBC)
 max(df4anaAvreplicates$effectB)
 max(df4anaAvreplicates$effectC)
-th <- 1.4
+filter_th <- 1.4
 
-ggplot(df4anaAvreplicates, aes(x=effectBC)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
-ggplot(df4anaAvreplicates, aes(x=effectB)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
-ggplot(df4anaAvreplicates, aes(x=effectC)) + geom_histogram() + geom_vline(xintercept =th, col="red", lty="dashed")
+ggplot(df4anaAvreplicates, aes(x=effectBC)) + geom_histogram() + geom_vline(xintercept =filter_th, col="red", lty="dashed")
+ggplot(df4anaAvreplicates, aes(x=effectB)) + geom_histogram() + geom_vline(xintercept =filter_th, col="red", lty="dashed")
+ggplot(df4anaAvreplicates, aes(x=effectC)) + geom_histogram() + geom_vline(xintercept =filter_th, col="red", lty="dashed")
 
-OutlierPoints <- filter(df4anaAvreplicates, effectB >th | effectC >th | effectBC>th)
-df4anaAvreplicatesRmOutliers<-filter(df4anaAvreplicates, effectB <=th & effectC  <= th & effectBC <= th)
-```
-
-
-Remove Outliers from futher analysis
-```{r}
-df4anaAvreplicates <- df4anaAvreplicatesRmOutliers
+OutlierPoints <- filter(df4anaAvreplicates, effectB >filter_th | effectC >filter_th | effectBC>filter_th)
+df4anaAvreplicatesRmOutliers <- filter(df4anaAvreplicates, effectB <=filter_th & effectC  <= filter_th & effectBC <= filter_th)
 ```
 
 
 #Data Export
 
-Export Data to be used in DrugCombi_Linkmolecular.Rmd
+Export Data to be used in further down-stream analyses
+
+- 'DrugMetaList': contains metadata about drug
+- 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
+- 'SetUpList':  contains info about plate structure for the screens
+- 'df4ana': contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
+- 'df4anaAvrepl': df4ana with average values for replicates
+- 'df4anaAvreplRemOutl': df4anaAvrepl, filtering out values above 1.4(filter_th)
+- 'patcol': color annotation for each patient
+- filter_th: values above which values are filtered out
+
+
 ```{r}
-save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,patcol,
+save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,patcol, filter_th,
      file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
 ```
 
+```{r, echo=FALSE}
+# check consistency with old objects
+old <- new.env()
+load("../Analysis/DrugCombi_VisualisationData.RData", envir = old)
+
+# same values in common columns added some more info on drugs removed well- or plate-wise info (misleading as only relevent for combination)
+same_cols <- intersect(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
+setdiff(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
+setdiff(colnames(old$df4anaAvreplicatesRmOutliers),colnames(df4anaAvreplicatesRmOutliers))
+
+# anti_join(x,y) keeps all rows of x that have no matching values in y
+stopifnot(nrow(anti_join(old$df4anaAvreplicates, df4anaAvreplicates)) ==0)
+stopifnot(nrow(anti_join(df4anaAvreplicates, old$df4anaAvreplicates)) ==0)
+# all rows in old object are in new object
+anti_join(old$df4anaAvreplicatesRmOutliers, df4anaAvreplicatesRmOutliers)
+# 295 rows are additionally in new object because previously all values for drug-drug combination with outliers were removed
+diff_df <- anti_join(df4anaAvreplicatesRmOutliers, old$df4anaAvreplicatesRmOutliers)
+
+OutlierPoints <- filter(df4anaAvreplicates, effectB >1.4 | effectC >1.4 | effectBC>1.4)
+stopifnot(nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) ==nrow(OutlierPoints))
+
+OutlierPoints <- select(OutlierPoints, PatientID, BDrugName, CDrugAbrv) %>%
+  mutate(OutlierCombi=paste(PatientID, BDrugName, CDrugAbrv, sep="_"))
+combi <- paste(df4anaAvreplicates$PatientID,df4anaAvreplicates$BDrugName, df4anaAvreplicates$CDrugAbrv, sep="_")
+stopifnot(sum(combi %in% OutlierPoints$OutlierCombi) == nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) + nrow(diff_df))
+```
 
 #SessionInfo
 ```{r}

@@ -1,0 +1,143 @@
+---
+title: "CLL drug combinations ex-vivo: Add information on omics data"
+author: "Britta Velten"
+date: "31 Aug 2018"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+---
+
+#Introduction
+
+This file adds available molecular data on the patients to the combi screen objects.
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+library(ggplot2)
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(dplyr)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+library(tidyverse)
+options(stringsAsFactors = FALSE)
+```
+
+```{r}
+today <- "180830"
+setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+outdir <- "out"
+figdir <- paste0("figuresAddOmicsData", today, "/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
+```
+
+# Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
+
+```{r}
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+```
+
+
+# Add molecular data
+
+## Load data
+
+```{r}
+# Patient metadata
+load("/Volumes/huber/projects/nct/cll/ProcessedData/patAnnotation/patmeta_180730.RData")
+IGHV <- select(patMeta, IGHV.status)
+
+# Patient ID conversion
+load("/Volumes/huber/projects/nct/cll/var/encPatientID_171018.RData")
+PID <- encPatientID$PatientID
+names(PID) <- encPatientID$PatientID2
+
+# mutations data
+library(BloodCancerMultiOmics2017)
+data(mutCOM)
+mutData <- channel(mutCOM, "binary")
+rownames(mutData) <- PID[rownames(mutData)]
+idx <- which(colnames(mutData) %in% c("del13q14_bi", "del13q14_mono"))
+mutData <- mutData[,-idx]
+colnames(mutData)[which(colnames(mutData)=="del13q14_any")] = "del13q14"
+
+# RNAseq data
+load("/Volumes/huber/projects/nct/cll/ProcessedData/RNAseq/objects/ddsrna_180717.RData")
+dds
+
+# WES data
+# methylation
+library(BloodCancerMultiOmics2017)
+data("methData")
+methData
+colnames(methData) <- PID[colnames(methData)]
+```
+
+
+## Check for which patients molecular data is available
+```{r}
+patientsID <- unique(df4ana$PatientID)
+stopifnot(length(patientsID) == 52)
+
+OverviewMolData <- data.frame(patientID = patientsID)
+OverviewMolData %<>% mutate(hasMeth = patientID %in% colnames(methData),
+                            hasRNAseq = patientID %in% colnames(dds),
+                            hasGenetics = patientID %in% rownames(mutData),
+                            hasIGHV = patientID %in% filter(patMeta, !is.na(IGHV.status))$Patient.ID)
+colSums(OverviewMolData[,-1])
+```
+
+## Subset data to patients from this screen
+```{r}
+methData <- methData[, patientsID]
+mutData <- mutData[patientsID, ]
+eData <- dds[,patientsID]
+patData <- filter(patMeta, Patient.ID %in% patientsID)
+```
+
+## Patient overview including genetic background and molecular data
+Creates a plot called "PatientOverview.pdf" giving an overview over the patients including infromation about somatic mutations, IGHV status, which omics are available.
+```{r MutsOverview}
+dfMuts <- mutData %>% exprs() %>% as.data.frame() %>%
+  rownames_to_column("PatientID") %>%
+  gather(key="mutation", value="status", -PatientID)
+nOccur <- with(dfMuts, tapply(status, mutation, sum, na.rm=T))
+dfMuts %<>% mutate(status = ifelse(status==1, "mutated", "unmutated"))
+dfMuts %<>% mutate(nOcc = nOccur[mutation])
+dfMuts %<>% mutate(mutation = factor(mutation, level = names(sort(nOccur))))
+dfMuts %<>% filter( mutation %in% names(nOccur)[nOccur>=3])
+gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile() +
+  scale_fill_manual(values=c(mutated="black", unmutated="white")) + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks = element_blank(), 
+        panel.background = element_blank(),
+        text = element_text(size=18),
+        legend.position = "top") +
+  xlab("Patient sample") + ylab("")
+
+gg1 
+
+gg2 <- ggplot(dfMuts, aes(x=mutation, y=nOcc)) +
+  geom_bar(stat="identity", fill ="cornflowerblue") + theme_void() + coord_flip()
+```
+
+```{r}
+save(methData, mutData, eData, patData, file = file.path(outdir,"OmicsData.RData"))
+```
+
+```{r}
+sessionInfo()
+```
+
