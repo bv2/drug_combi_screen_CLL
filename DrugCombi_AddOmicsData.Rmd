@@ -57,7 +57,8 @@ load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 ```{r}
 # Patient metadata
 load("/Volumes/huber/projects/nct/cll/ProcessedData/patAnnotation/patmeta_180730.RData")
-IGHV <- select(patMeta, IGHV.status)
+patMeta %<>% rename(PatientID = Patient.ID)
+IGHV <- select(patMeta, IGHV.status, PatientID)
 
 # Patient ID conversion
 load("/Volumes/huber/projects/nct/cll/var/encPatientID_171018.RData")
@@ -95,30 +96,41 @@ OverviewMolData <- data.frame(patientID = patientsID)
 OverviewMolData %<>% mutate(hasMeth = patientID %in% colnames(methData),
                             hasRNAseq = patientID %in% colnames(dds),
                             hasGenetics = patientID %in% rownames(mutData),
-                            hasIGHV = patientID %in% filter(patMeta, !is.na(IGHV.status))$Patient.ID)
+                            hasIGHV = patientID %in% filter(patMeta, !is.na(IGHV.status))$PatientID)
 colSums(OverviewMolData[,-1])
 ```
 
 ## Subset data to patients from this screen
 ```{r}
+minOcc <- 3
 methData <- methData[, patientsID]
 mutData <- mutData[patientsID, ]
+mutData <- mutData[, colSums(exprs(mutData), na.rm=TRUE) >= minOcc]
 eData <- dds[,patientsID]
-patData <- filter(patMeta, Patient.ID %in% patientsID)
+patData <- filter(patMeta, PatientID %in% patientsID)
+patData <- select(patData, 1:10, 10+ which(colSums(patData[,11:121]==1, na.rm=TRUE)>= minOcc))
 ```
 
-## Patient overview including genetic background and molecular data
+## Construct Mutation DF
+```{r}
+dfMuts <- mutData %>% exprs() %>% as.data.frame() %>%
+  rownames_to_column("PatientID")
+dfMuts <- left_join(dfMuts, IGHV, by="PatientID")
+dfMuts %<>% rename(IGHV=IGHV.status)
+dfMuts %<>% mutate(IGHV = ifelse(IGHV=="M",1,0))
+
+```
+
+# Patient overview including genetic background and molecular data
 Creates a plot called "PatientOverview.pdf" giving an overview over the patients including infromation about somatic mutations, IGHV status, which omics are available.
 ```{r MutsOverview}
-dfMuts <- mutData %>% exprs() %>% as.data.frame() %>%
-  rownames_to_column("PatientID") %>%
+df4plot <- dfMuts %>%
   gather(key="mutation", value="status", -PatientID)
-nOccur <- with(dfMuts, tapply(status, mutation, sum, na.rm=T))
-dfMuts %<>% mutate(status = ifelse(status==1, "mutated", "unmutated"))
-dfMuts %<>% mutate(nOcc = nOccur[mutation])
-dfMuts %<>% mutate(mutation = factor(mutation, level = names(sort(nOccur))))
-dfMuts %<>% filter( mutation %in% names(nOccur)[nOccur>=3])
-gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile(col="black") +
+nOccur <- with(df4plot, tapply(status, mutation, sum, na.rm=T))
+df4plot %<>% mutate(status = ifelse(status==1, "mutated", "unmutated"))
+df4plot %<>% mutate(nOcc = nOccur[mutation])
+df4plot %<>% mutate(mutation = factor(mutation, level = names(sort(nOccur))))
+gg1 <- ggplot(df4plot, aes(x=PatientID, y=mutation, fill=status)) + geom_tile(col="black") +
   scale_fill_manual(values=c(mutated="black", unmutated="white")) + 
   theme(axis.text.x = element_blank(),
         axis.ticks = element_blank(), 
@@ -131,9 +143,9 @@ gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile(col
         plot.margin =  unit(c(0,0,-0.2,0), units="cm")) +
   xlab("") + ylab("") + guides(fill=guide_legend(title=""))
 
- gg1 
+ # gg1 
 
-# gg2 <- ggplot(dfMuts, aes(x=mutation, y=nOcc)) +
+# gg2 <- ggplot(df4plot, aes(x=mutation, y=nOcc)) +
 #   geom_bar(stat="identity", fill ="cornflowerblue") +
 #   theme(plot.margin =  unit(c(0,0,0,-2), units="cm"),
 #         panel.background = element_blank(),
@@ -141,7 +153,7 @@ gg1 <- ggplot(dfMuts, aes(x=PatientID, y=mutation, fill=status)) + geom_tile(col
 #         axis.ticks = element_blank()
 #         ) + coord_flip()
 
-gg3 <- ggplot(dfMuts, aes(x=PatientID, y=1, fill=PatientID))+ geom_tile(col="black") +
+gg3 <- ggplot(df4plot, aes(x=PatientID, y=1, fill=PatientID))+ geom_tile(col="black") +
   scale_fill_manual(values=patcol) + 
   theme(axis.text.x = element_blank(),
         axis.ticks = element_blank(), 
@@ -155,8 +167,9 @@ gg3 <- ggplot(dfMuts, aes(x=PatientID, y=1, fill=PatientID))+ geom_tile(col="bla
 cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb", rel_heights = c(5,0.35), rel_widths = c(5,1))
 ```
 
+# Data export
 ```{r}
-save(methData, mutData, eData, patData, file = file.path(outdir,"OmicsData.RData"))
+save(methData, mutData, eData, patData, dfMuts, file = file.path(outdir,paste0("OmicsData",today,".RData")))
 ```
 
 ```{r}
