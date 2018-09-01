@@ -147,3 +147,43 @@ plotThings<-function(what=c("ABC", "DiffPerConc", "Curves","CombiBenefit"), IGHV
   dev.off()
   if(what=="CombiBenefit"|what=="DiffPerConc") return(CombiBenefit)
 }
+
+
+# Function to plot comparison of two combination compunds across all base drugs
+PlotComparsionCombiCDrugs <- function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.4), type=c("scatter_joint", "scatter_factBDrug", "boxplot_joint")){
+  df.x <- filter(df4ana, CDrugAbrv==CDrugAbrv.x)
+  df.y <- filter(df4ana, CDrugAbrv==CDrugAbrv.y)
+  df <- merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
+                             "BDrugConc", "BDrugName"))
+  if(type == "scatter_joint"){
+    gg <- ggplot(df, aes(x=effectBC.x, y=effectBC.y, col=BDrugName)) +
+      geom_point() +
+      xlab(paste("Combination effect with", CDrugAbrv.x, "\n (viability relative to DMSO control)")) +
+      ylab(paste("Combination effect with", CDrugAbrv.y, "\n (viability relative to DMSO control)")) +    
+      annotate("text", x=range[1]+0.1, y=range[2]-0.1, label=paste("cor ==", (round(cor(df$effectBC.x,df$effectBC.y),2))), parse=T) +
+      geom_abline(slope=1, intercept=0, lty="dashed") + guides(col=guide_legend(title="Base compound"))
+} else if(type == "scatter_factBDrug"){
+  gg <- ggplot(df, aes(x=effectBC.x, y=effectBC.y, col=BDrugName)) +
+    geom_point() +
+    xlab(paste("Combination effect with",CDrugAbrv.x,  "\n (viability relative to DMSO control)")) +
+    ylab(paste("Combination effect with",CDrugAbrv.y,  "\n (viability relative to DMSO control)")) +
+    facet_wrap(~BDrugName) +
+    annotate("text", x=range[1]+0.3, y=range[2]-0.1, label=paste("cor ==", (round(summarize(group_by(df, BDrugName), cor=cor(effectBC.x, effectBC.y))$cor,2))), parse=T, size=3) +
+    guides(col=guide_legend(ncol=1)) + geom_abline(slope=1, intercept=0)
+} else if( type=="boxplot_joint"){
+  df_rbind <- data.frame(effect=c(df$effectBC.x, df$effectBC.y),
+                         Cdrug=c(df$CDrugAbrv.x, df$CDrugAbrv.y),
+                         BDrugName = c(df$BDrugName, df$BDrugName))
+  t.out <- t.test(effect ~ Cdrug, df_rbind, var.equal=TRUE)
+  
+  gg <- ggplot(df_rbind, aes(x=Cdrug, y=effect)) + 
+    geom_point(position="jitter", alpha=0.4, col="forestgreen") + 
+    geom_boxplot(alpha=0.4) +
+    ggpubr::stat_compare_means(method = "t.test") +
+    ylab(paste("Combination effect \n (viability relative to DMSO control)")) +
+    xlab("Combination compound")
+}
+  
+return(gg)
+}
+

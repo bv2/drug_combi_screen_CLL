@@ -84,7 +84,7 @@ nrow(df_effectB)
 # Test for assciations of base effect to mutations
 ```{r}
 df_effectB_vs_muts <- left_join(df_effectB,
-                                gather(dfMuts, key="mutation", value="status", -PatientID), by="PatientID")
+                                gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
 df_effectB_vs_muts <- df_effectB_vs_muts[!duplicated(df_effectB_vs_muts),] #remove duplicates, as info is contained in each combi durg
 df_pvals_effectB_vs_muts <- group_by(df_effectB_vs_muts, BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation) %>%
   summarize(pval = t.test(effectB ~ status, var.equal= TRUE)$p.value,
@@ -100,10 +100,7 @@ df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutati
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
 df_pvals_max %<>% mutate(sig = pval.adj<0.01, col = mean.diff>0)
 
-mostCommonMuts <- colSums(dfMuts[,-1]) > 10
-mostCommonMuts <- names(mostCommonMuts)[which(mostCommonMuts)]
-
-ggplot(filter(df_pvals_max,mutation %in% mostCommonMuts), aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
+ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
   geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
   scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
 ```
@@ -115,28 +112,30 @@ df_nconc <- df_sign %>% group_by(BDrugName, mutation) %>% summarize(nconc =n())
 
 # TP53
 df_signTP53 <- df_sign %>% filter(mutation == "TP53")
+paste(unique(df_signTP53$BDrugName), collapse = ", ")
 
 # IGHV
 df_signIGHV <- df_sign %>% filter(mutation == "IGHV")
+paste(unique(df_signIGHV$BDrugName), collapse = ", ")
 ```
 
 ## Boxplots
 Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at an FDR of 1%.
-```{r boxplot_base_TP53}
+```{r boxplot_base_TP53, fig.width=9, fig.height=4}
 df_effectB_vs_muts %>% filter(mutation == "TP53", BDrugName %in% df_signTP53$BDrugName) %>% 
   mutate(status = ifelse(status ==0, "wt","mut")) %>%
   ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability")
+  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability") +theme_bw()
 
 ```
 
-```{r, boxplot_base_IGHV}
+```{r, boxplot_base_IGHV, fig.width=9, fig.height=9}
 df_effectB_vs_muts %>% filter(mutation == "IGHV", BDrugName %in% df_signIGHV$BDrugName) %>% 
     mutate(status = ifelse(status ==0, "U-CLL","M-CLL")) %>%
   ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV"))+ xlab("Concentration") +ylab("viability")
+  guides(fill = guide_legend(title="IGHV"))+ xlab("Concentration") +ylab("viability")+theme_bw()
 ```
 
 

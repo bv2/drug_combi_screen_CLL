@@ -1,7 +1,7 @@
 ---
-title: "DrugCombi_Visualization"
+title: "CLL drug combinations ex-vivo: Analyse combination effects"
 author: "Britta Velten"
-date: "21 October 2016"
+date: "1 Sept 2018"
 output:
   BiocStyle::html_document:
     toc: true
@@ -9,7 +9,7 @@ output:
 ---
 #Introduction
 
-Takes the data object created in DrugCombi_RawDataAnalysis.Rmd and produces plots of the viability values.
+This file analyses the data from the combination screen for combination with a second compound (drugC).
 
 ```{r, echo=F}
 library(knitr )
@@ -17,7 +17,6 @@ knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 ```
 
 ```{r, echo=F}
-library(ggplot2)
 library(RColorBrewer)
 library(Biobase)
 library(abind)
@@ -27,7 +26,6 @@ library(reshape2)
 library(gridExtra)
 require(pracma)
 library(reshape2)
-library(dplyr)
 library(pheatmap)
 library(magrittr)
 library(lattice)
@@ -39,42 +37,18 @@ today<-"180830"
 setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
 datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 outdir <- "out"
-figdir <- paste0("figuresViz", today, "/")
+figdir <- paste0("figuresCombi", today, "/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
-#Overview over external plots produced in this file:
-
-|plot name | description |
-| ------------- | ------------- |
-| "BaseAloneVsCombi.pdf" | Normalized viabilities of drug B only (from DMSO plate) vs normalized viabilities of both drugs |
-| "CombiVsAddEffect.pdf" | Normalized viabilities of both drugs vs the theoretical value in an additive effect model given by the product of the normalized viabilities using only drug B and drug C, respectively  |
-| "Curves.pdf" | Normalized viabilites of both drug in solid and of theoretical additive value in dashed over the 5 concentrations used for drugB |
-| "ABC.pdf" | area between the curves (ABC) of Curves.pdf for all patients normalized by highest concentration value used, red line gives the median |
-| "CombiBenefit.pdf" | barplots of median of the ABC for each drug-drug combination |
-| "DiffPerConc.pdf" | differenc between  normalized viabilites of both drug and theoretical additive value  for each of 5 concentrations and all patients |
-| "HeatmapSynergyDrugByDrug.pdf" | Heatmap clustered by correlation distances between either the median of ABC values across patients (i.e. as bars in "CombiBenefit.pdf" or red line in "ABC.pdf") or the mean across the 5 concentrations over the patients median of concentration-wise difference (i.e. mean/median of values in "DiffPerConc.pdf" |
-| "HeatmapSynergyDrugByDrug_zscore.pdf" | Heatmap clustered by correlation distances between column-wise z-scores of ABC values or mean over concentrations as above |
-|"HeatmapBaseDrugByDrug.pdf"| Heatmap based on correlation bewteen viabilities values of base drugs, clustered by correlation distances|
-|"HeatmapBaseDrugByPatients.pdf"|Heatmap based on viabilities values of base drugs for each patient, clustered by correlation distances|
-|"HeatmapBaseDrugByPatients_zscore.pdf"|Heatmap based on z-score viabilities values of base drugs for each patient clustered by correlation distance|
 
 #Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
 
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("OmicsData",today,".RData")))
 ```
-
-Loaded dataframe from MarinaCombiDataAfterQC_:
-
-- 'DrugMetaList': contains metadata about drug
-- 'CompleteDF': contains data from all plates, wells and screens, raw values and values normalized by median of DM control wells
-- 'SetUpLost':  contains info about plate structure for the screens
-- 'df4ana': contains values for all drug-drug pairs (effectBS) with matched one-only effect from corresponding +DMSO well (effectB) or median of DM+ wells (effectC)
-- 'df4anaAvrepl': df4ana with average values for replicates
-- 'df4anaAvreplRemOutl': df4anaAvrepl, filtering out values above 1.4
-- 'patcol': color annotation for each patient
 
 ```{r, echo=FALSE}
 # check consistency with old objects
@@ -480,7 +454,7 @@ dev.off()
 #Comparions BCR inhibitors
 Scatterplots comparing the effect of 2 BCR inhibitors across all base drugs
 ```{r}
-PlotComparsionCombiCDrugs<-function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
+PlotComparsionCombiCDrugs <- function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
 df.x<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.x)
 df.y<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.y)
 df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",

@@ -119,6 +119,9 @@ dfMuts <- left_join(dfMuts, IGHV, by="PatientID")
 dfMuts %<>% rename(IGHV=IGHV.status)
 dfMuts %<>% mutate(IGHV = ifelse(IGHV=="M",1,0))
 
+# for testing only take thos with more than 5 occurences in the sample cohort
+nOcc <- colSums(dfMuts[,colnames(dfMuts) != "PatientID"])
+dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>5])
 ```
 
 # Patient overview including genetic background and molecular data
@@ -169,7 +172,8 @@ cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb", rel_heights = c(5
 
 # Data export
 ```{r}
-save(methData, mutData, eData, patData, dfMuts, file = file.path(outdir,paste0("OmicsData",today,".RData")))
+save(methData, mutData, eData, patData, dfMuts,dfMuts4testing,
+     file = file.path(outdir,paste0("OmicsData",today,".RData")))
 ```
 
 ```{r}
