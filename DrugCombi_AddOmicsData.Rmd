@@ -45,8 +45,8 @@ if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
-# Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
-
+# Data Import: 
+Load processed Data from DrugCombi_QC.Rmd
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 ```
