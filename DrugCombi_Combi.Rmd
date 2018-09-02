@@ -46,8 +46,8 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
 
-# Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
-
+# Data Import:
+Load processed Data from DrugCombi_QC.Rmd and DrugCombi_AddOmics (moelcular data on patient samples)
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 load(file.path(outdir, paste0("OmicsData",today,".RData")))
