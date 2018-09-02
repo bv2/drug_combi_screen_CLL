@@ -6,6 +6,8 @@ output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
+    params: 
+    today: 180902
 ---
 
 #Introduction
@@ -26,9 +28,9 @@ options(stringsAsFactors = FALSE)
 
 
 ```{r}
-today <- "180830"
-setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
-datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 ```
 
 
