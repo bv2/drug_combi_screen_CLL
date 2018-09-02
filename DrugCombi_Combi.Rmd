@@ -6,6 +6,8 @@ output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
+    params: 
+    today: 180902
 ---
 #Introduction
 
@@ -30,12 +32,13 @@ library(pheatmap)
 library(magrittr)
 library(lattice)
 library(tidyverse)
+source("plot_utils.R")
 ```
 
 ```{r, echo=F}
-today<-"180830"
-setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
-datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 figdir <- paste0("figuresCombi", today, "/")
 if(!dir.exists(figdir)) dir.create(figdir)
@@ -43,38 +46,11 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
 
 
-#Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
+# Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
 
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 load(file.path(outdir, paste0("OmicsData",today,".RData")))
-```
-
-```{r, echo=FALSE}
-# check consistency with old objects
-old <- new.env()
-load("../Analysis/DrugCombi_VisualisationData.RData", envir = old)
-
-# same values in common columns added some more info on drugs removed well- or plate-wise info (misleading as only relevent for combination)
-same_cols <- intersect(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
-setdiff(colnames(df4anaAvreplicatesRmOutliers), colnames(old$df4anaAvreplicatesRmOutliers))
-setdiff(colnames(old$df4anaAvreplicatesRmOutliers),colnames(df4anaAvreplicatesRmOutliers))
-
-# anti_join(x,y) keeps all rows of x that have no matching values in y
-stopifnot(nrow(anti_join(old$df4anaAvreplicates, df4anaAvreplicates)) ==0)
-stopifnot(nrow(anti_join(df4anaAvreplicates, old$df4anaAvreplicates)) ==0)
-# all rows in old object are in new object
-anti_join(old$df4anaAvreplicatesRmOutliers, df4anaAvreplicatesRmOutliers)
-# 295 rows are additionally in new object because previously all values for drug-drug combination with outliers were removed
-diff_df <- anti_join(df4anaAvreplicatesRmOutliers, old$df4anaAvreplicatesRmOutliers)
-
-OutlierPoints <- filter(df4anaAvreplicates, effectB >1.4 | effectC >1.4 | effectBC>1.4)
-stopifnot(nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) ==nrow(OutlierPoints))
-
-OutlierPoints <- select(OutlierPoints, PatientID, BDrugName, CDrugAbrv) %>%
-  mutate(OutlierCombi=paste(PatientID, BDrugName, CDrugAbrv, sep="_"))
-combi <- paste(df4anaAvreplicates$PatientID,df4anaAvreplicates$BDrugName, df4anaAvreplicates$CDrugAbrv, sep="_")
-stopifnot(sum(combi %in% OutlierPoints$OutlierCombi) == nrow(df4anaAvreplicates) - nrow(df4anaAvreplicatesRmOutliers) + nrow(diff_df))
 ```
 
 ```{r}
@@ -83,9 +59,207 @@ df4ana <- df4anaAvreplicatesRmOutliers
 rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
 ```
 
-# Add combination indices
+# Which combination drugs are available in how many samples
+```{r nSamples_bar}
+df_nsamples <- df4ana %>%
+  select(CDrugAbrv, PatientID) %>%
+  filter(!duplicated(.)) %>%
+  group_by(CDrugAbrv) %>%
+  summarise(nSamples =length(unique(PatientID)))
+df_nsamples %>%
+  mutate(CDrugAbrv = factor(CDrugAbrv, levels = df_nsamples$CDrugAbrv[order(df_nsamples$nSamples, decreasing = T)])) %>%
+  ggplot(aes(x=CDrugAbrv, y=nSamples)) +
+  geom_bar(stat="identity", fill="navy") +
+  theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1),
+        panel.background = element_blank(),
+        axis.ticks.x = element_blank()) +
+  xlab("Combination Drug") +ylab("Number of samples")
+```
+
+# Comparison of different concentrations of drugC (Ibrutinib)
+```{r Ibr100vsIbru10, fig.width=15, fig.height=5}
+gg1 <- plotComparsionCDrugs("Ibrutinib100", "Ibrutinib10", type="boxplot_joint")
+gg2 <- plotComparsionCDrugs("Ibrutinib100", "Ibrutinib10", type="scatter_joint")
+cowplot::plot_grid(gg1, gg2, align = "tb", axis = "hv", labels = c("A", "B"),
+                   rel_widths = c(1,2), label_size = 18)
+```
+
+# Viability heatmaps in combination with ibrutinib100
+
+## Patient by patient
+```{r Combi_Ibru100_heatmap_pat_pat, fig.width=5.5, fig.height=5}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib100", type = "PatPat")
+
+```
+
+
+## Patient x Base drugs
+```{r Combi_Ibru100_heatmap_patient_drug, fig.width=14}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib100", type = "PatDrug", useAverage = FALSE)
+```
+
+Average over concentrations
+```{r Combi_Ibru100_heatmap_patient_drug_av}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib100", type = "PatDrug", useAverage = TRUE)
+```
+
+
+# Viability heatmaps in combination with Idealisib
+## Patient by patient
+```{r Combi_Idea_heatmap_pat_pat, fig.width=5.5, fig.height=5}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "CAL101", type = "PatPat")
+
+```
+
+## Patient x Base drugs
+```{r Combi_Idea_heatmap_patient_drug, fig.width=14}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "CAL101", type = "PatDrug", useAverage = FALSE)
+```
+
+Average over concentrations
+```{r Combi_Idea_heatmap_patient_drug_av}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "CAL101", type = "PatDrug", useAverage = TRUE)
+```
+
+
+# Test for assciations of combi effect with Ibrutinib to mutations
+```{r}
+df_combis_vs_muts <- left_join(df4ana,
+                                gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
+df_combis_vs_muts %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
+
+# test each drug-drug pairs for each base concentration and mutation
+# only inclduing durg-drug combinations with at least 3 samples from mutated and unmutated group
+df_pvals_combi_vs_muts <- group_by(df_combis_vs_muts, CDrugAbrv, CDrugNameLong, CDrugID, CDrugName, CDrugConc,
+                                      BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation, combi) %>%
+  summarize(n_muts= sum(status==1), n_wt =sum(status==0),
+            pval = ifelse(n_muts<3 | n_wt<3, NA,t.test(effectBC ~ status, var.equal= TRUE)$p.value),
+            mean.diff = ifelse(n_muts<3 | n_wt<3, NA,diff(t.test(effectBC ~ status, var.equal= TRUE)$estimate))) %>%
+  filter(!is.na(pval))
+df_pvals_combi_vs_muts %<>% mutate(pval.adj = p.adjust(pval, method="BH"))
+
+hist(df_pvals_combi_vs_muts$pval)
+```
+
+## Volcanoe plot
+FDR cutoff
+```{r}
+alpha <- 0.01
+```
+
+All tested genetic features
+```{r volcanoe_combi_all, fig.height=15}
+# take only most significant concentration for plotting (FDR control is on level of single concentrations)
+df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
+  filter(!is.na(pval))%>%
+  summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx],
+            mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
+df_pvals_max %<>% mutate(sig = pval.adj<0.01,
+                         col = mean.diff>0,
+                         label = combi)
+ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, label, ""))) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
+```
+
+Only IGHV and TP53
+```{r volcanoe_combi, fig.width=15, fig.height=9}
+#IGHV
+dfIGHV <- df_pvals_max %>% filter(mutation == "IGHV")
+df <- data.frame(X = dfIGHV$mean.diff,
+                 Y = -log10(dfIGHV$pval.adj),
+                 Label = dfIGHV$label)
+ggIGHV <- ggvolc(df, Ycut = -log10(alpha), xlab ="Mean difference",
+                 title = "Association to IGHV (most significant concentration)")
+
+#TP53
+dfTP53 <- df_pvals_max %>% filter(mutation == "TP53")
+df <- data.frame(X = dfTP53$mean.diff,
+                 Y = -log10(dfTP53$pval.adj),
+                 Label = dfTP53$label)
+ggTP53 <- ggvolc(df, Ycut = -log10(alpha), xlab ="Mean difference",
+                 title = "Association to TP53 (most significant concentration)")
+
+cowplot::plot_grid(ggIGHV, ggTP53)
+```
+
+## Call overviews
+List of significant pharmacogenomic interactions
+```{r}
+df_sign <- df_pvals_combi_vs_muts %>% filter(pval.adj < alpha)
+df_nconc <- df_sign %>% group_by(combi, mutation) %>% summarize(nconc =n())
+
+# TP53
+df_signTP53 <- df_sign %>% filter(mutation == "TP53")
+unique(df_signTP53$combi)
+
+# IGHV
+df_signIGHV <- df_sign %>% filter(mutation == "IGHV")
+unique(df_signIGHV$combi)
+```
+
+Which combination drug shows most significant associations
+```{r}
+dfSummaryCalls <- df_sign %>% group_by(CDrugAbrv) %>% summarize(nCalls = length(unique(BDrugName)),
+                                                              nSamples = max(n_muts + n_wt)) # not exactly the same number of samples as outliers are removed for some drug-drug interactions, take max
+arrange(dfSummaryCalls, nCalls)
+
+dfSummaryCalls %>% gather(key="legend", value = "n", -1) %>%
+  mutate(CDrugAbrv = factor(CDrugAbrv, levels = dfSummaryCalls$CDrugAbrv[order(dfSummaryCalls$nCalls)])) %>%
+  ggplot(aes(x= CDrugAbrv, y=n, fill=legend)) +geom_bar(stat="identity", position="dodge") +coord_flip()
+```
+
+## Boxplots Ibrutinib
+Draw boxplots for TP53 and IGHV including all drug combinations that have significant concentrations at an FDR of 1%.
+```{r boxplot_combiIbru100_TP53, fgi.width=9, fig.height=4}
+sel_combis <- c("Ibrutinib100+Nutlin-3","Ibrutinib100+Fludarabine")
+stopifnot(sel_combis %in% df_signTP53$combi)
+
+df_combis_vs_muts %>% filter(mutation == "TP53", combi %in% sel_combis) %>% 
+  mutate(status = ifelse(status ==0, "wt","mut")) %>%
+  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability")
+
+```
+
+```{r boxplot_combiIbru100_IGHV, fgi.width=9, fig.height=4}
+sel_combis <- c("Ibrutinib100+AZD7762","Ibrutinib100+PF 477736", "Ibrutinib100+Dasatinib")
+stopifnot(sel_combis %in% df_signIGHV$combi)
+
+df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>% 
+  mutate(status = ifelse(status ==0, "wt","mut")) %>%
+  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability")
+```
+
+## Boxplots Idealisib
+```{r boxplot_combiIdea_IGHV, fgi.width=9, fig.height=4}
+sel_combis <- c("CAL101+AZD7762","CAL101+PF 477736", "CAL101+Dasatinib")
+stopifnot(sel_combis %in% df_signIGHV$combi)
+
+df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>% 
+  mutate(status = ifelse(status ==0, "wt","mut")) %>%
+  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability")
+```
+
+
+
+```{r}
+knitr::opts_chunk$set(eval=FALSE)
+```
+
+
+
+
+
+# Add additive effect indices per patient and concentration
 ```{r}
 df4ana %<>% mutate(effectAdd = effectB * effectC)
+
 ```
 
 #Plots
@@ -108,7 +282,7 @@ BaseDrugs <- unique(df4ana$BDrugName)
 CombiDrugs <- unique(df4ana$CDrugAbrv)
 ```
 
-```{r BaseAloneVsCombi, eval=T, fig.height = 20, fig.width = 30}
+```{r BaseAloneVsCombi, fig.height = 20, fig.width = 30}
 BaseDrugs4paper <- 
 for( drB in BaseDrugs){
   for( conc in paste0("c",1:5)){
@@ -171,13 +345,13 @@ source("plotThings.R")
 ```
 
 Curve of combined effect over all concentrations of the base drug (solid) and curve of theoretical additive effect over all concentrations of the base drug (dashed)
-```{r, eval=T}
+```{r }
 plotThings("Curves", CombiDrugs=CombiDrugs,
                      BaseDrugs=BaseDrugs, df4anaAvreplicates=df4ana, outputdir=figdir)
 ```
 
 ## Area between curves of theoretical additive effect and true combined effect
-```{r, eval=T}
+```{r}
 # plotThings("ABC",CombiDrugs=CombiDrugs,
                      # BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
 
@@ -235,7 +409,7 @@ dev.off()
 ```
 
 ## Difference between curves at the individual concentration values
-```{r, eval=T}
+```{r}
 CombiBenefitMeanDiff<-plotThings("DiffPerConc",CombiDrugs=CombiDrugs,
                      BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
 
@@ -254,7 +428,7 @@ dev.off()
 
 ## ABC median across Patients
 needs some scaling to concentrations considered to be interpretable as a value
-```{r, eval=T}
+```{r}
 CombiBenefitABCMedian<-plotThings("CombiBenefit",CombiDrugs=CombiDrugs,
                      BaseDrugs=BaseDrugs, df4anaAvreplicates=df4anaAvreplicates, outputdir=outputdir)
 write.csv(CombiBenefitABCMedian, file.path(outputdir,"ABCMedian.csv"))
@@ -454,7 +628,7 @@ dev.off()
 #Comparions BCR inhibitors
 Scatterplots comparing the effect of 2 BCR inhibitors across all base drugs
 ```{r}
-PlotComparsionCombiCDrugs <- function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
+PlotComparsionCombiCDrugs<-function(CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.25)){
 df.x<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.x)
 df.y<-filter(df4anaAvreplicates, CDrugAbrv==CDrugAbrv.y)
 df<-merge(df.x, df.y, by=c("PatientID","BDrugID", "BDrugConcId",
