@@ -86,7 +86,7 @@ num2id = function(nums) {
 DrugInfoBase[,1] <- num2id(as.vector(DrugInfoBase[,1]))
 
 # complete list of drugs with names and ids (from Gosia)
-load("../Analysis/DrugMetaData.RData")
+load(file.path(datadir, "DrugMetaData.RData"))
 DrugInfoAll <- drugs
 rm(drugs)
 ```
