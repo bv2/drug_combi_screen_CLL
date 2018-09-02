@@ -93,7 +93,7 @@ ggplot(CompleteDF, aes(y=factor(WellLetter, levels=letters[16:1]), x=WellNo)) + 
 
 ## Compare to data.frames in Analyses folder (old import)
 The cleaned up script for data import produces the same results as before.
-```{r}
+```{r, echo=FALSE, eval=FALSE}
 old <- new.env()
 load("../Analysis/ImportedData.RData", envir = old)
 old$CompleteDF %<>% rename(BaseDrugID = IDBaseDrug,
@@ -331,7 +331,7 @@ save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4an
      file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 # check consistency with old objects
 old <- new.env()
 load("../Analysis/DrugCombi_VisualisationData.RData", envir = old)
