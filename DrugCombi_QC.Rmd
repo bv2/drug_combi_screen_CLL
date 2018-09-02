@@ -45,18 +45,10 @@ outdir = "out"
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresQC", today, "/"))
 ```
 
-#Overview over external plots produced in this file:
-
-|plot name | description |
-| ------------- | ------------- |
-| "plateplots.raw.pdf" | Raw Viabilities Measures per plate |
-| "plateplots.norm.pdf" | DMSO-normalized Viability measures per plate |
-| "replicateConsensus.pdf" | Scatterplot of raw viability values, normalized viability values of drug combinations, viabiliy values of base drug alon, viability values of combi drug alone comparing the two replicates of patients in screen 1 and 2 |
-
 
 # Preparations
-## Data Import:  from DrugCombi_RawDataAnalysis.Rmd and molecular data about patients
-
+# Data Import 
+Load processed Data from DrugCombi_ImportData.Rmd
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiData_",today,".RData")))
 ```
