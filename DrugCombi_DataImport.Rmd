@@ -250,8 +250,10 @@ DrugInfoCombi <- data.frame(abrv=CombiDrugs,
                                   "AVL", "CAL-101", "R406", "Fludarabine",
                                   "IPI-145", "LGX", "YM155", "Abt-199", "Pomalidomide", "Afatinib",
                                   "Everolimus"),
-                            conc=c(NA, 0.1, 1, 1,1,1, NA, NA, 1, 0.01, 0.005,1,1,NA) # info taken from "Versuche-Patienten-Drugs.xlsx",
+                            conc=c(NA, 0.1, 1, 1,1,1, 1, NA, 1, 0.01, 0.005,1,1,1) # info taken from "Versuche-Patienten-Drugs.xlsx",
 )
+# comment by Marina: Values in table are off by 1/10 except for 5nM and 10nM
+DrugInfoCombi %<>% mutate(conc = ifelse(name %in% c("YM155", "Abt-199"), conc, conc/10))
 DrugInfoCombi$id <- sapply(DrugInfoCombi$name, function(n) rownames(DrugInfoAll)[which(DrugInfoAll$SimpleName==n|DrugInfoAll$Substance==n)])
 DrugInfoCombi %<>% mutate(id =ifelse(id == "D0DM", "DM", id))
 
