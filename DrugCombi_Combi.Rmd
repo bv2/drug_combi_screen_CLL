@@ -124,27 +124,24 @@ plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Idelalisib", typ
 
 ## Heatmaps
 ### Ibrutinib
-```{r Heatmap_DrugDrug_Ibrutinib}
+```{r Heatmap_DrugDrug_Ibrutinib, fig.width=12, fig.height=6}
 matIbru <- plotHeatmap(df4ana, dfMuts,  "Ibrutinib (100nM)", type = "DrugDrug",
                        useAverage = TRUE, DrugDrugbyIGHV = TRUE, returnMat = TRUE)
 ```
 ### Idelalisib
-```{r Heatmap_DrugDrug_Idelalisib}
+```{r Heatmap_DrugDrug_Idelalisib, fig.width=12, fig.height=6}
 matIdel <- plotHeatmap(df4ana, dfMuts,  "Idelalisib", type = "DrugDrug", 
                        useAverage = TRUE, DrugDrugbyIGHV = TRUE, returnMat = TRUE)
 ```
 
 ### jointly
-```{r Heatmap_DrugDrug_Ibru+Idel}
+```{r Heatmap_DrugDrug_Ibru+Idel, fig.height=7}
 commonPats <- intersect(rownames(matIdel), rownames(matIbru))
 matIdel <- matIdel[commonPats,]
 matIbru <- matIbru[commonPats,]
 
 corIdel <- cor(matIdel)
 corIbru <- cor(matIbru)
-
-pheatmap(corIdel)
-pheatmap(corIbru)
 
 # take ordering from Ibrutinib and tranfer to Idelalisib and set lower triangel to zero
 orderIbru <- hclust(dist(corIbru))$order

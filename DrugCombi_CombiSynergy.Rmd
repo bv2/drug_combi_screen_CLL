@@ -122,15 +122,15 @@ dfsynSummaryConcPat <- dfsynSummaryConc %>%
 ```
 
 # Heatmap SI drug-drug combination
-```{r SI_heatmap}
+```{r SI_heatmap, fig.height=9}
 SImat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>%
   dplyr::rename(SI = addModelSImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-myHeatmap(SImat, colors=c("navy", "blue", "white", "red","darkred"))
+myHeatmap(t(SImat), colors=c("navy", "blue", "white", "red","darkred"))
 
-pheatmap(SImat, breaks = seq(0, max(SImat),0.01), main = "SI")
+pheatmap(t(SImat), breaks = seq(0, max(SImat),0.01), main = "SI")
 
 dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>% filter(CDrugAbrv !="Duvelisib") %>%
@@ -150,24 +150,24 @@ dfsyn %>% filter(CDrugAbrv=="Duvelisib", BDrugName == "Doxorubicine") %>%
 ```
 
 # Heatmap HSA
-```{r CIhsa_heatmap}
+```{r CIhsa_heatmap, fig.height=9}
 SImat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, hsaCImed) %>%
   dplyr::rename(SI = hsaCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(SImat, breaks = seq(0,1,0.01), main = "Highest single agent Index")
+pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Highest single agent Index")
 ```
 
 # Heatmap Bliss
 Values below 1 indicate synergy.
-```{r CIBliss_heatmap}
+```{r CIBliss_heatmap, fig.height=9}
 SImat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, BlissCImed) %>%
   dplyr::rename(SI = BlissCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(SImat, breaks = seq(0,1,0.01), main = "Bliss Index")
+pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Bliss Index")
 ```
 
 
@@ -188,14 +188,14 @@ dflm %<>% mutate(intercept = lm.out$coefficient[1],
                  pBC = coefficients(summary(lm.out))[4,4])
 ```
 
-```{r}
+```{rlm_heatmap, fig.height=9}
 betamat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
   summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
   select(CDrugAbrv,BDrugName, betaBC) %>%
   spread(key=BDrugName, value=betaBC) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-myHeatmap(betamat, colors=c("navy", "blue", "white", "red","darkred"))
+myHeatmap(t(betamat), colors=c("navy", "blue", "white", "red","darkred"))
 
 pmat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
   summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
@@ -203,7 +203,7 @@ pmat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
   spread(key=BDrugName, value=pBC) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-myHeatmap(-log10(pmat), colors=c("white", "white", "white", "grey","black"))
+myHeatmap(-log10(t(pmat)), colors=c("white", "white", "white", "grey","black"))
 
 dflm$padj = p.adjust(dflm$pBC, method = "BH")
 filter(dflm, padj < 0.05)
@@ -213,20 +213,29 @@ filter(dflm, padj < 0.05)
 
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
-```{r Ibrutinib (100nM)_Navitoclax_Curves, fig.width=6}
+```{r Ibrutinib (100nM)_Navitoclax_Curves, fig.width=9}
 plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax")
 ```
 
-## Bxplots CI
-```{r Ibrutinib (100nM)_Navitoclax_CIboxplots}
+## Boxplots CI
+```{r Ibrutinib (100nM)_Navitoclax_CIboxplots_Bliss, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "Bliss")
-plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "hsa")
-plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "SI")
 ```
 
-```{r Ibrutinib (100nM)_Navitoclax_CIwaterfall, fig.width=7}
+```{r Ibrutinib (100nM)_Navitoclax_CIboxplots_HSA, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "hsa")
+```
+
+```{r Ibrutinib (100nM)_Navitoclax_CIboxplots_SI, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "SI")
+```
+## Waterfall CI
+
+```{r Ibrutinib (100nM)_Navitoclax_CIwaterfall, fig.width=10}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "SI")
 ```
+
+## Scatter
 
 ```{r Ibrutinib (100nM)_Navitoclax_Scatter, fig.width=9}
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Navitoclax")
@@ -237,21 +246,30 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Navitoclax")
 
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
-```{r Ibrutinib (100nM)_Afatinib_Curves, fig.width=6}
+```{r Ibrutinib (100nM)_Afatinib_Curves, fig.width = 12}
 plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", sep_by_IGHV = TRUE)
 ```
 
 ## Boxplots CI
-```{r Ibrutinib (100nM)_Afatinib_CIboxplots}
+```{r Ibrutinib (100nM)_Afatinib_CIboxplots_Bliss, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_Afatinib_CIboxplots_HSA, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "hsa")
+```
+
+```{r Ibrutinib (100nM)_Afatinib_CIboxplots_SI, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "SI")
 ```
 
-```{r Ibrutinib (100nM)_Afatinib_CIwaterfall, fig.width=7}
+## Waterfall CI
+
+```{r Ibrutinib (100nM)_Afatinib_CIwaterfall, fig.width=10}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "SI")
 ```
 
+## Scatter
 ```{r Ibrutinib (100nM)_Afatinib_Scatter, fig.width=9}
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Afatinib")
 ```
@@ -261,21 +279,29 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Afatinib")
 
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
-```{r Ibrutinib (100nM)_Venetoclax_Curves, fig.width=6}
+```{r Ibrutinib (100nM)_Venetoclax_Curves, fig.width=12}
 plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", sep_by_IGHV = TRUE)
 ```
 
 ## Boxplots CI
-```{r Ibrutinib (100nM)_Venetoclax_CIboxplots}
+```{r Ibrutinib (100nM)_Venetoclax_CIboxplots_Bliss, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_Venetoclax_CIboxplots_HSA, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "hsa")
+```
+
+```{r Ibrutinib (100nM)_Venetoclax_CIboxplots_SI, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "SI")
 ```
 
-```{r Ibrutinib (100nM)_Venetoclax_CIwaterfall, fig.width=7}
+## Waterfall CI
+```{r Ibrutinib (100nM)_Venetoclax_CIwaterfall, fig.width=10}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "SI")
 ```
 
+## Scatter
 ```{r Ibrutinib (100nM)_Venetoclax_Scatter, fig.width=9}
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Venetoclax")
 ```
@@ -284,21 +310,29 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Venetoclax")
 
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
-```{r Ibrutinib (100nM)_Fludarabine_Curves, fig.width=6}
+```{r Ibrutinib (100nM)_Fludarabine_Curves, fig.width=12}
 plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", sep_by_IGHV = TRUE)
 ```
 
 ## Boxplots CI
-```{r Ibrutinib (100nM)_Fludarabine_CIboxplots}
+```{r Ibrutinib (100nM)_Fludarabine_CIboxplots_Bliss, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_Fludarabine_CIboxplots_HSA, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type = "hsa")
+```
+
+```{r Ibrutinib (100nM)_Fludarabine_CIboxplots_SI, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type = "SI")
 ```
 
-```{r Ibrutinib (100nM)_Fludarabine_CIwaterfall, fig.width=7}
+## Waterfall CI
+```{r Ibrutinib (100nM)_Fludarabine_CIwaterfall, fig.width=10}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type = "SI")
 ```
 
+## Scatter
 ```{r Ibrutinib (100nM)_Fludarabine_Scatter, fig.width=9}
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Fludarabine")
 ```
@@ -326,18 +360,26 @@ dfsynSummaryConcPat %>% filter(CDrugAbrv %in% BCRi) %>%
                          ifelse(BDrugName %in% B_BCL2$niceName, "BCL2i", "other"))) %>%
   mutate(CDrugAbrv = factor(CDrugAbrv, levels = c("Ibrutinib (100nM)", BCRi[BCRi!="Ibrutinib (100nM)"]))) %>%
   ggplot(aes(x = BDrugName, y = addModelSImed, fill=type)) + geom_bar(stat="identity") +
-  facet_wrap(~CDrugAbrv, ncol=1) +guides(fill=FALSE) + theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1))  +
-  ylab("Synergy Index (SI)") + xlab("Base compound")
+  facet_wrap(~CDrugAbrv, ncol=1) +
+  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1),
+        axis.ticks.x = element_blank(),
+        panel.background = element_rect(fill = "white"))  +
+  ylab("Synergy Index (SI)") + xlab("Base compound") 
 ```
 
 ## Response curves
-```{r BCRi_ResponseCurves}
+```{r BCRi_ResponseCurves, fig.height= 9}
 plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406", "AZD7762", "Dasatinib", "PF 477736", "Idelalisib"))
 ```
 
 ##Scatterplot
-```{r BCRi_Scatterplot}
+```{r BCRi_Scatterplot, fig.width=9}
 plotScattterVsCombi(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Idelalisib")
+```
+
+## Boxplots CI
+```{r Ibrutinib (100nM)_Idelalisib_CIboxplots_Bliss, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Idelalisib", CI_type = "Bliss")
 ```
 
 ```{r}

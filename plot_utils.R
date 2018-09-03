@@ -374,7 +374,8 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
     ylab(paste0("Combination index (", CI_type, ")")) + 
     scale_fill_manual(values = patcol) +
     theme(axis.ticks.x = element_blank(),
-          axis.text.x = element_blank())
+          axis.text.x = element_blank()) +
+    guides(fill=FALSE)
   
   return(gg)
 }
@@ -394,10 +395,10 @@ plotScattter <- function(df, drB, drC, th = filter_th){
     # ggtitle(paste("Base drug (A):", drB, "\n Combination drug (B):", drC)) +
     coord_fixed() + scale_x_continuous(limits=range) + 
     scale_y_continuous( limits=range) +
-    theme_bw(base_size = 20) +
-    ylab(paste0("viability (", drB,"+", drC, ")")) +
+    theme_bw(base_size = 14) +
+    ylab(paste0("viability (combination)")) +
     xlab(paste0("viability (", drB,") * viability (", drC, ")")) +
-    annotate("text", x=0.8*th, y=0.3, label= "synergy", size=6, alpha=0.4) + 
+    annotate("text", x=0.8*th, y=0.3, label= "synergy", size=4, alpha=0.4) + 
     guides(col=FALSE)
   
   return(gg)
@@ -418,10 +419,10 @@ plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
     # ggtitle(paste("Base drug (A):", drB, "Combination drug (B):", drC)) + 
     coord_fixed() + scale_x_continuous(limits=range) + 
     scale_y_continuous( limits=range) +
-    theme_bw(base_size = 20) +
+    theme_bw(base_size = 14) +
     ylab(paste0("viability (", drC, ")")) +
     xlab(paste0("viability (", drB,"+", drC, ")")) +
-    annotate("text", y=0.8*th, x=0.3, label= "additivity", size=6, alpha=0.4) + 
+    annotate("text", y=0.8*th, x=0.3, label= "additivity", size=4, alpha=0.4) + 
     guides(col=FALSE)
   
   return(gg)

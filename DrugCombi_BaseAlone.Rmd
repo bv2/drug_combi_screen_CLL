@@ -110,7 +110,7 @@ df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutati
 df_pvals_max %<>% mutate(sig = pval.adj<alpha, col = mean.diff>0)
 
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
-  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), size=3) +
   scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
 ```
 
@@ -160,12 +160,13 @@ effectB_mat <- df_effectB %>%
 
 ## Base-DrugxDrug
 ```{r heatmap_base_drug_drug}
-pheatmap(cor(effectB_mat, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10, treeheight_col = 10)
+pheatmap(cor(effectB_mat, use = "complete.obs"),
+         show_rownames = FALSE,treeheight_row = 10, treeheight_col = 10)
 ```
 
 
 Average over concentrations
-```{r heatmap_base_drug_drug_av}
+```{r heatmap_base_drug_drug_av, fig.height=7}
 effectB_mat_av <- df_effectB %>% 
   select(BDrugName, PatientID, effectB)  %>%
   group_by(BDrugName,PatientID) %>%
