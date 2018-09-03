@@ -7,4 +7,4 @@ rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_QC
 rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_AddOmicsData.Rmd", params = list(today=today))
 rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_BaseAlone.Rmd", params = list(today=today))
 rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_Combi.Rmd", params = list(today=today))
-# rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_CombiSynergy.Rmd", params = list(today=today))
+rmarkdown::render("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/DrugCombi_CombiSynergy.Rmd", params = list(today=today))

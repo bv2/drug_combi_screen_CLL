@@ -6,8 +6,8 @@ output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
-    params: 
-    today: 180902
+params: 
+    today: 180903
 ---
 
 #Introduction
@@ -40,6 +40,7 @@ options(stringsAsFactors = FALSE)
 # datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
+today <- params$today
 figdir <- paste0("figuresAddOmicsData", today, "/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)

@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180902
+    today: 180903
 ---
 
 #Introduction
@@ -43,6 +43,7 @@ options(stringsAsFactors = FALSE)
 # datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
+today <- params$today
 figdir <- paste0("figuresBaseAlone", today, "/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
@@ -230,7 +231,7 @@ names(anno_colors) <- colnames(dfanno)
 # Single correlation values
 ```{r}
 # navitoclax - venetoclax
-cor(as.numeric(effectB_mat[,grep("ABT-263", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("Abt-199", colnames(effectB_mat))]))
+cor(as.numeric(effectB_mat[,grep("Navitoclax", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("Venetoclax", colnames(effectB_mat))]))
 
 cor(as.numeric(effectB_mat[,grep("YM155", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("SNS-032", colnames(effectB_mat))]))
 

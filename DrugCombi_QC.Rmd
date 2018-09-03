@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180902
+    today: 180903
 ---
 
 #Introduction
@@ -17,6 +17,7 @@ Takes the data objects created in DrugCombi_RawDataAnalysis.Rmd and performs fur
 ```{r, echo=F}
 library(knitr )
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+options(stringAsFactors = FALSE)
 ```
 
 ```{r, echo=F}
@@ -154,7 +155,7 @@ df_reps <- filter(CompleteDF, ScreenNo %in% c("SS1","SS2")) %>%
   mutate(replicate = paste0("rep",replicate)) %>%
   spread(key="replicate", value="rawValue")
 
-ggplot(df_reps, aes(x=rep1, y=rep2, col=PatientID)) + geom_point() +
+ggplot(df_reps, aes(x=rep1, y=rep2, col=as.character(PatientID))) + geom_point() +
    scale_color_manual(values = patcol) +
   geom_abline(intercept=0,slope=1, lty="dashed") +
   geom_text(x =100000, y =600000, label = paste("r =", round(cor(df_reps$rep1,df_reps$rep2),2)), col="black", size =5) +

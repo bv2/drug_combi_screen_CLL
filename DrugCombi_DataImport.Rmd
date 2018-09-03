@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180902
+    today: 180903
 ---
 
 #Introduction
@@ -25,6 +25,7 @@ library(magrittr)
 library(xlsx)
 library(dplyr)
 options(stringsAsFactors = FALSE)
+today <- params$today
 ```
 
 
@@ -277,6 +278,50 @@ CompleteDF <- rename(CompleteDF, CombiDrugName = name,
                      CombiDrug_longname = long_name)
 ```
 
+# Use consistent drug names
+Make drug names consistent between base compound and combination compounds:
+
+For base compounds
+```{r}
+df_BNametoNiceName <- data.frame(
+  BaseDrugName = unique(CompleteDF$BaseDrugName),
+  niceName = c("DMSO", "Navitoclax", "Idelalisib", "Fludarabine", "Selumetinib", "AZD7762", "TAE684", "R406", "BAY 11-7085", "KU-60019", "Dasatinib", "Arsentrioxide", "PF 477736", "Venetoclax", 
+               "Ruxolitinib", "Doxorubicine", "Silmitasertib", "Ibrutinib", "SNS-032", "Nutlin-3", "Afatinib", "NSC74859", "MK-2206", "YM155", "SGX-523", "Chaetoglobosin A", "Everolimus", "LY2603618",
+               "Spebrutinib", "Duvelisib", "SD07", "Bayer-18", "Sotrastaurin")
+)
+df_match <- df_BNametoNiceName %>% 
+    rowwise() %>% 
+    mutate(Matches =  BaseDrugName == niceName | grepl(niceName, BaseDrugName))
+stopifnot(sum(df_match$Matches) <= nrow(df_match) -5)
+
+# add to result data frame
+CompleteDF %<>% left_join(df_BNametoNiceName, by = "BaseDrugName")
+CompleteDF$BaseDrugName <- NULL
+CompleteDF %<>% dplyr::rename(BaseDrugName = niceName)
+
+# add to drug info
+DrugInfoBase %<>% left_join(df_BNametoNiceName, by = c("Substance" = "BaseDrugName"))
+```
+
+For combination compounds
+```{r}
+df_CNametoNiceName <- data.frame(
+  CombiDrug = unique(CompleteDF$CombiDrug),
+  niceName = c(NA , "DMSO", "Ibrutinib (10nM)", "Ibrutinib (100nM)", "Spebrutinib", "Idelalisib", "R406", "Fludarabine", "Duvelisib", "Encorafenib", "YM155", "Venetoclax", "Pomalidomide", "Afatinib", "Everolimus")
+)
+df_match <- df_CNametoNiceName %>% 
+    rowwise() %>% 
+    mutate(Matches =  CombiDrug == niceName | grepl(substr(CombiDrug,1,8), niceName))
+stopifnot(sum(df_match$Matches, na.rm = TRUE) <= nrow(df_match) - 5)
+
+# add to result data frame
+CompleteDF %<>% left_join(df_CNametoNiceName, by = "CombiDrug")
+CompleteDF$CombiDrug <- NULL
+CompleteDF %<>% dplyr::rename(CombiDrug = niceName)
+
+# add to drug info
+DrugInfoCombi %<>% left_join(df_CNametoNiceName, by = c("abrv" = "CombiDrug"))
+```
 
 * not used so far: d0 tables, SS-IP screen
 
@@ -317,6 +362,7 @@ FirstTable <- FirstTable[order(FirstTable$CombiDrug),
                          "PlateDate", "PlateTime")]
 head(FirstTable)
 ```
+
 
 
 # Re-structure to obtain combination and single agent effects
