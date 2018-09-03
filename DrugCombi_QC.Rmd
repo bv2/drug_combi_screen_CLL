@@ -42,6 +42,7 @@ library(tidyverse)
 # datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir = "out"
+today <- params$today
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresQC", today, "/"))
 ```
 
@@ -289,6 +290,9 @@ for( i in 1:length(unique(df4ana$patrep))) {
 ## Drop Screen 1
 As no good DMSO plate available screen1 is dropped for all subseqeunt analysis
 ```{r}
+dftmp <- filter(CompleteDF, ScreenNo == "SS2", CombiDrugName =="DMSO", BaseDrugName == "DMSO")
+hist(dftmp$normalizedValue)
+
 CompleteDF <- filter(CompleteDF, ScreenNo!="SS1")
 df4anaAvreplicates <- filter(df4anaAvreplicates,  ScreenNo!="SS1" )
 df4ana <- filter(df4ana, ScreenNo!="SS1")
@@ -311,6 +315,24 @@ OutlierPoints <- filter(df4anaAvreplicates, effectB >filter_th | effectC >filter
 df4anaAvreplicatesRmOutliers <- filter(df4anaAvreplicates, effectB <=filter_th & effectC  <= filter_th & effectBC <= filter_th)
 ```
 
+## Are there non-active compounds?
+```{r}
+dfC <- df4ana %>% select(CDrugAbrv, effectC, PatientID) %>% filter(!duplicated(.)) 
+dfC %>% ggplot(aes(x=effectC)) +geom_histogram() + facet_wrap(~ CDrugAbrv) +
+  geom_vline(xintercept = 1, col = "red") +xlab("viability of combination compound alone")
+
+df4ana %>% group_by(CDrugAbrv) %>% summarize(var = var(pmin(1,effectC))) %>% arrange(var)
+```
+
+```{r}
+dfB <- df4ana %>% select(BDrugName, BDrugConcId, effectB, PatientID) %>% filter(!duplicated(.)) 
+dfB %>% ggplot(aes(x=effectB, fill = BDrugConcId)) +geom_histogram() + facet_wrap(~ BDrugName) +
+  geom_vline(xintercept = 1, col = "red") +xlab("viability of base compound alone")
+
+df4ana %>% group_by(BDrugName, BDrugConcId) %>% summarize(var = var(pmin(1,effectB)), mean = mean(effectB)) %>% 
+  arrange(var) %>% group_by(BDrugName) %>% summarize(max_var = max(var), min_mean = min(mean))%>% 
+  arrange(max_var)
+```
 
 #Data Export
 
