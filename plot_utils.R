@@ -373,3 +373,18 @@ plotThings<-function(what=c("ABC", "DiffPerConc", "Curves","CombiBenefit"), IGHV
   if(what=="CombiBenefit"|what=="DiffPerConc") return(CombiBenefit)
 }
 
+myHeatmap <- function(test, minV=NULL, maxV = NULL, paletteLength=100,
+                      colors=c("black", "blue", "white", "orange","red"),  ...){
+  
+  if(is.null(minV)) minV <- min(test)
+  if(is.null(maxV)) maxV <- max(test)
+  
+  myColor <- colorRampPalette(colors)(paletteLength)
+  # length(breaks) == length(paletteLength) + 1
+  # use floor and ceiling to deal with even/odd length pallettelengths
+  myBreaks <- c(seq(minV, 0, length.out=ceiling(paletteLength/2) + 1), 
+                seq(maxV/paletteLength,maxV, length.out=floor(paletteLength/2)))
+  
+  # Plot the heatmap
+  pheatmap(test, color=myColor, breaks=myBreaks, ...)
+}

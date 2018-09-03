@@ -6,7 +6,7 @@ output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
-    params: 
+params: 
     today: 180902
 ---
 
@@ -91,8 +91,14 @@ df_effectB_vs_muts <- df_effectB_vs_muts[!duplicated(df_effectB_vs_muts),] #remo
 df_pvals_effectB_vs_muts <- group_by(df_effectB_vs_muts, BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation) %>%
   summarize(pval = t.test(effectB ~ status, var.equal= TRUE)$p.value,
             mean.diff = diff(t.test(effectB ~ status, var.equal= TRUE)$estimate))
-df_pvals_effectB_vs_muts %<>% mutate(pval.adj = p.adjust(pval, method="BH"))
+df_pvals_effectB_vs_muts$pval.adj <- p.adjust(df_pvals_effectB_vs_muts$pval, method="BH")
 hist(df_pvals_effectB_vs_muts$pval)
+```
+
+
+```{r}
+# FDR threshold
+alpha <- 0.05
 ```
 
 ## Volcanoe plot
@@ -100,7 +106,7 @@ hist(df_pvals_effectB_vs_muts$pval)
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
-df_pvals_max %<>% mutate(sig = pval.adj<0.01, col = mean.diff>0)
+df_pvals_max %<>% mutate(sig = pval.adj<alpha, col = mean.diff>0)
 
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
   geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
@@ -109,7 +115,7 @@ ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
 
 ## List of significant pharmacogenomic interactions
 ```{r}
-df_sign <- df_pvals_effectB_vs_muts %>% filter(pval.adj < 0.01)
+df_sign <- df_pvals_effectB_vs_muts %>% filter(pval.adj < alpha)
 df_nconc <- df_sign %>% group_by(BDrugName, mutation) %>% summarize(nconc =n())
 
 # TP53

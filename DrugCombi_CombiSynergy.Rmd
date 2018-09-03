@@ -118,14 +118,14 @@ dfsynSummaryConcPat <- dfsynSummaryConc %>%
   ungroup()
 ```
 
-## Heatmap SI drug-drug combination
+# Heatmap SI drug-drug combination
 ```{r SI_heatmap}
 SImat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>%
   rename(SI = addModelSImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap::pheatmap(SImat)
+myHeatmap(SImat, colors=c("navy", "blue", "white", "red","darkred"))
 ```
 
 What happed for IPI145?
@@ -140,10 +140,43 @@ dfsyn %>% filter(CDrugAbrv=="IPI145", BDrugName == "Doxorubicine") %>%
   ggplot(aes(x=BDrugConcId, y = viability, col=type)) + geom_point() + facet_wrap(~PatientID)
 ```
 
-FIXME: Take firt the mean viablilty and then calulcate SI or the other way round? - Take single patients first
 
+# Linear model with interaction terms
+Only include combination with at least 10 samples
 ```{r}
 knitr::opts_chunk$set(eval=FALSE, echo=FALSE)
+# fit a linear model for each drug-drug combi and concentration (conc are not independent) across samples
+dfn <- dfsyn %>% group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% summarise(nsamples = n()) %>% filter(nsamples>=10)
+
+dflm <- dfsyn %>% left_join(dfn, by= c("CDrugAbrv", "BDrugName", "BDrugConcId")) %>%
+  filter(nsamples >= 10) %>%
+  group_by(CDrugAbrv, BDrugName, BDrugConcId) %>%
+  do(lm.out = lm(log(.$viabBC) ~ log(.$viabB) + log(.$viabC) + log(.$viabC)*log(.$viabB)))
+dflm %<>% mutate(intercept = lm.out$coefficient[1],
+                 betaB = lm.out$coefficient[2],
+                 betaC = lm.out$coefficient[3],
+                 betaBC = lm.out$coefficient[4],
+                 pBC = coefficients(summary(lm.out))[4,4])
+```
+
+```{r}
+betamat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
+  summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
+  select(CDrugAbrv,BDrugName, betaBC) %>%
+  spread(key=BDrugName, value=betaBC) %>% 
+  column_to_rownames("CDrugAbrv") %>% as.matrix()
+
+myHeatmap(betamat, colors=c("navy", "blue", "white", "red","darkred"))
+
+pmat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
+  summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
+  select(CDrugAbrv,BDrugName, pBC) %>%
+  spread(key=BDrugName, value=pBC) %>% 
+  column_to_rownames("CDrugAbrv") %>% as.matrix()
+
+myHeatmap(-log10(pmat), colors=c("navy", "blue", "white", "red","darkred"))
+
+dflm %>% mutate(padj = p.adjust(pBC, method = "BH"))
 ```
 
 ## Curve over concentrations

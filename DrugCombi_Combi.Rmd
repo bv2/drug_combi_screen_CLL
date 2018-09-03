@@ -6,8 +6,8 @@ output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
-    params: 
-    today: 180902
+params: 
+    today: 180903
 ---
 #Introduction
 
@@ -136,15 +136,14 @@ df_pvals_combi_vs_muts <- group_by(df_combis_vs_muts, CDrugAbrv, CDrugNameLong, 
             pval = ifelse(n_muts<3 | n_wt<3, NA,t.test(effectBC ~ status, var.equal= TRUE)$p.value),
             mean.diff = ifelse(n_muts<3 | n_wt<3, NA,diff(t.test(effectBC ~ status, var.equal= TRUE)$estimate))) %>%
   filter(!is.na(pval))
-df_pvals_combi_vs_muts %<>% mutate(pval.adj = p.adjust(pval, method="BH"))
-
+df_pvals_combi_vs_muts$pval.adj <-  p.adjust(df_pvals_combi_vs_muts$pval, method="BH")
 hist(df_pvals_combi_vs_muts$pval)
 ```
 
 ## Volcanoe plot
 FDR cutoff
 ```{r}
-alpha <- 0.01
+alpha <- 0.05
 ```
 
 All tested genetic features
@@ -154,7 +153,7 @@ df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugI
   filter(!is.na(pval))%>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx],
             mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
-df_pvals_max %<>% mutate(sig = pval.adj<0.01,
+df_pvals_max %<>% mutate(sig = pval.adj<alpha,
                          col = mean.diff>0,
                          label = combi)
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
