@@ -124,7 +124,7 @@ dfMuts %<>% mutate(IGHV = ifelse(IGHV=="M",1,0))
 
 # for testing only take thos with more than 5 occurences in the sample cohort
 nOcc <- colSums(dfMuts[,colnames(dfMuts) != "PatientID"])
-dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>5])
+dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>=5])
 ```
 
 # Patient overview including genetic background and molecular data

@@ -129,6 +129,7 @@ SImat <- dfsynSummaryConcPat %>%
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
 myHeatmap(t(SImat), colors=c("navy", "blue", "white", "red","darkred"))
+colSums(SImat>0)
 
 pheatmap(t(SImat), breaks = seq(0, max(SImat),0.01), main = "SI")
 
@@ -156,7 +157,8 @@ SImat <- dfsynSummaryConcPat %>%
   dplyr::rename(SI = hsaCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Highest single agent Index")
+pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Highest single agent Index",
+                  color = colorRampPalette(brewer.pal(n = 7, name ="RdYlBu"))(100))
 ```
 
 # Heatmap Bliss
@@ -167,7 +169,8 @@ SImat <- dfsynSummaryConcPat %>%
   dplyr::rename(SI = BlissCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Bliss Index")
+pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Bliss Index",
+         color = colorRampPalette(brewer.pal(n = 7, name ="RdYlBu"))(100))
 ```
 
 

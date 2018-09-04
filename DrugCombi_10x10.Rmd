@@ -111,7 +111,7 @@ FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 
 
 # Read in values from 10x10 plates
 ```{r}
-import10x10Data <- function(filename, SetUpBase, SetUpIbr){
+import10x10Data <- function(filename, SetUp){
   print(filename)
   data <- read.xlsx2(file.path(datadir10x10,filename),1, header = F, startRow=3)
   
@@ -181,7 +181,7 @@ import10x10Data <- function(filename, SetUpBase, SetUpIbr){
 Different from Marina normalized values by median instead of mean (as done in other combi screens).
 ```{r}
 allFiles <- setdiff(list.files(file.path(datadir10x10), "*.xlsx"), list.files(file.path(datadir10x10),"Protokoll"))
-listOfTables <- lapply(allFiles, function(file) import10x10Data(file, SetUpBase, SetUpIbr))
+listOfTables <- lapply(allFiles, function(file) import10x10Data(file, SetUp))
 for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("10x10PL%03d", l)
 df10x10 <- do.call(rbind,listOfTables)
 ```
@@ -268,102 +268,97 @@ plotTiles10x10(df10x10, "Venetoclax", "P0445")
 ```
 
 
+# Isobologram - Analysis
+
+```{r}
+library(BIGL)
+```
+
+```{r isobologram_Venetoclax}
+data <- filter(df10x10, BaseDrugName == "Venetoclax") %>%
+  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
+marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
+summary(marginalFit)
+rs <- fitSurface(data, marginalFit,
+                 null_model = "loewe",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+
+rs <- fitSurface(data, marginalFit,
+                 null_model = "hsa",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+```
+
+```{r isobologram_Navitoclax}
+data <- filter(df10x10, BaseDrugName == "Navitoclax") %>%
+  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
+marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
+summary(marginalFit)
+rs <- fitSurface(data, marginalFit,
+                 null_model = "loewe",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+
+rs <- fitSurface(data, marginalFit,
+                 null_model = "hsa",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+```
+
+```{r isobologram_Afatinib}
+data <- filter(df10x10, BaseDrugName == "Afatinib") %>%
+  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
+marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
+summary(marginalFit)
+rs <- fitSurface(data, marginalFit,
+                 null_model = "loewe",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+
+rs <- fitSurface(data, marginalFit,
+                 null_model = "hsa",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+```
+
+```{r isobologram_Idelalisib}
+data <- filter(df10x10, BaseDrugName == "Idelalisib") %>%
+  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
+marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
+summary(marginalFit)
+rs <- fitSurface(data, marginalFit,
+                 null_model = "loewe",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+
+rs <- fitSurface(data, marginalFit,
+                 null_model = "hsa",
+                 B.CP = 50, statistic = "meanR", parallel = FALSE)
+isobologram(rs)
+summary(rs)
+```
+
+
+# SynergyFinder
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
+
+```{r}
+library("synergyfinder")
+browseVignettes("synergyfinder")
+```
+
+Other packages: drc, SYNERGY
+
 ```{r}
 sessionInfo()
 ```
 
 
-```{r}
-knitr::opts_chunk$set(eval = FALSE, echo = FALSE)
-```
-
-#Calculate IC_x
-To determine for each drug and combinationt the IX_x concentrations fit dose-response curves across all patients.
-
-??????
-
-2d fit to get IC50 for each combination
-how to calculate isobologram?
-```{r, eval=F}
-library(drc)
-#base drug only
-for(pat in unique(DF10x10$PatientID)){
-for( drB in (setdiff(unique(DF10x10$BaseDrug), "DM"))){
-if(nrow(filter(DF10x10, BaseDrug==drB & PatientID==pat ))>0){
-dftmp<-DF10x10%>% filter(CombiDrug=='Ibrutinib'&concCvalue==0 & BaseDrug==drB & PatientID==pat)
-m<-drm(normalizedValueDMSOControl ~ concBvalue, data=dftmp,fct = LL.4())
-# print(summary(m))
-# plot(m, main=paste(drB, pat))
-newx=data.frame(concBvalue=seq(0,max(dftmp$concBvalue), length.out = 10000))
-pred<-predict(m, newx)
-IC50<-newx[which.min(abs(pred-0.5)),]
-IC90<-newx[which.min(abs(pred-0.9)),]
-IC70<-newx[which.min(abs(pred-0.7)),]
-ICValuebase<-c(IC50=IC50, IC70=IC70, IC90=IC90)
-
-
-#combi drug only in the corresponding 
-dftmp<-DF10x10%>% filter(CombiDrug=='Ibrutinib'&concBvalue==0& BaseDrug==drB & PatientID==pat)
-m<-drm(normalizedValueDMSOControl ~ concCvalue, data=dftmp,fct = LL.4())
-# print(summary(m))
-# plot(m, main=paste("Ibrutinib on plate", drB, pat))
-newx=data.frame(concCvalue=seq(0,max(dftmp$concCvalue), length.out = 10000))
-pred<-predict(m, newx)
-IC50<-newx[which.min(abs(pred-0.5)),]
-IC90<-newx[which.min(abs(pred-0.9)),]
-IC70<-newx[which.min(abs(pred-0.7)),]
-ICValueIbru<-c(IC50=IC50, IC70=IC70, IC90=IC90)
-
-#IC values of combinations
-dfcombi<-DF10x10%>% filter(CombiDrug=='Ibrutinib'& BaseDrug==drB & concBvalue!=0 & concCvalue!=0 & PatientID==pat)
-plot(c(0,ICValueIbru["IC50"]), c(ICValuebase["IC50"],0), main=paste(drB, pat), type='l', xlab="concIbru", ylab="concBase")
-
-#which way around (fit concB for conC fixed or otherwise, fit 2d?)
-for(concB in unique(dfcombi$concBvalue)){
-dftmp<-DF10x10%>% filter(CombiDrug=='Ibrutinib'&concBvalue==concB& BaseDrug==drB  & PatientID==pat)
-if(any(dftmp$normalizedValueDMSOControl>0.5)){
-m<-drm(normalizedValueDMSOControl ~ concCvalue, data=dftmp,fct = LL.4())
-# print(summary(m))
-# plot(m, main=paste("Ibrutinib on plate", drB, pat))
-newx=data.frame(concCvalue=seq(0,max(dftmp$concCvalue), length.out = 10000))
-pred<-predict(m, newx)
-IC50<-newx[which.min(abs(pred-0.5)),]
-IC90<-newx[which.min(abs(pred-0.9)),]
-IC70<-newx[which.min(abs(pred-0.7)),]
-ICValuejoint<-data.frame(concC=c(IC50=IC50, IC70=IC70, IC90=IC90), concB=concB)
-print(ICValuejoint)
-points(ICValuejoint["IC50",])
-}
-}
-#which way around (fit concB for conC fixed or otherwise, fit 2d?)
-for(concC in unique(dfcombi$concCvalue)){
-dftmp<-DF10x10%>% filter(CombiDrug=='Ibrutinib'&concCvalue==concC& BaseDrug==drB & PatientID==pat)
-if(any(dftmp$normalizedValueDMSOControl>0.5)){
-m<-drm(normalizedValueDMSOControl ~ concBvalue, data=dftmp,fct = LL.4())
-# print(summary(m))
-# plot(m, main=paste("Ibrutinib on plate", drB, pat))
-newx=data.frame(concBvalue=seq(0,max(dftmp$concCvalue), length.out = 10000))
-pred<-predict(m, newx)
-IC50<-newx[which.min(abs(pred-0.5)),]
-IC90<-newx[which.min(abs(pred-0.9)),]
-IC70<-newx[which.min(abs(pred-0.7)),]
-ICValuejoint<-data.frame(concC=concC, concB=c(IC50=IC50, IC70=IC70, IC90=IC90))
-print(ICValuejoint)
-points(ICValuejoint["IC50",], pch=3)
-}
-}
-}
-}
-}
-```
-
-#Isobologram
-Concentrations required for given effect (e.g., IC50) are determined for drug B (ICx, B) and drug C (ICx, C). A line connecting (ICx, A, 0) and (0, ICx, B) is the line of additivity. Then, the concentrations of A and B contained in combination that provide the same effect, denoted as (CA, x, CB, x), are placed in the same plot. Synergy, additivity, or antagonism is indicated when (CA, x, CB, x) is located below, on, or above the line, respectively.
-
-```{r}
-```
-
-
-
-#CI Loewe
-$CI=\frac{C_{A,x}}{IC_{x,A}}+\frac{C_{B,x}}{IC_{x,B}}$

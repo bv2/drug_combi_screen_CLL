@@ -458,11 +458,12 @@ plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
 # 10x10 screens
 #############################
 
-plotTiles10x10 <- function(df, drB, pat){
-
+plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
+    type <- match.arg(type)
     df4plot <- filter(df, PatientID==pat, BaseDrugName == drB, CombiDrug == "Ibrutinib") 
     df4plot %<>% rename(viability = normalizedValue)
     df4plot %<>%  select(concCvalue, concBvalue, viability)
+    if(type == "tile"){
     gg <- ggplot(df4plot, aes(x=factor(concBvalue), y=factor(concCvalue), fill = viability)) +
         geom_tile() + 
         ggtitle(paste(drB, pat)) +
@@ -470,6 +471,10 @@ plotTiles10x10 <- function(df, drB, pat){
       ylab("Ibrutinib") +xlab (drB) +theme_bw(base_size = 15) + coord_fixed() +
       theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
     gg
+    } else if(type == "contour"){
+    gg <- ggplot(df4plot, aes(x=(concBvalue), y=(concCvalue), z=viability)) + geom_contour(aes())
+    gg
+    }
     return(gg)
     }  
 
