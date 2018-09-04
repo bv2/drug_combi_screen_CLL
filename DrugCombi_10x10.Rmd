@@ -37,6 +37,7 @@ library(magrittr)
 library(lattice)
 library(tidyverse)
 library(xlsx)
+source("plot_utils.R")
 ```
 
 ```{r}
@@ -45,7 +46,7 @@ library(xlsx)
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir = "out"
 today <- params$today
-knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figuresQC", today, "/"))
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figures10x10", today, "/"))
 ```
 
 
@@ -57,49 +58,54 @@ datadir10x10 <- file.path(datadir,"10x10")
 # Get plate eet-up
 From Prtocol get set-up of the plate (i.e. which substance in which concentration in which well)
 ```{r}
-FileSetUp10x10 <- read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2)
+FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2))
 
-#get set-up for base/test drugs
+# get set-up for base/test drugs
   tableIdxBase <- which(FileSetUp10x10=="A", arr.ind = T)[1,]
-  SetUp <- FileSetUp10x10[tableIdxBase[1]+0:15,tableIdxBase[2]+1:24]
-  namesCol <- FileSetUp10x10[tableIdxBase[1]-2,tableIdxBase[2]+1:24]
+  SetUpBase <- FileSetUp10x10[tableIdxBase[1]+0:15,tableIdxBase[2]+1:24]
+  rownames(SetUpBase) <- FileSetUp10x10[tableIdxBase[1]+0:15,tableIdxBase[2]]
+  colnames(SetUpBase) <- FileSetUp10x10[tableIdxBase[1]-1,tableIdxBase[2]+1:24]
+  SetUpBase <- rownames_to_column(as.data.frame(SetUpBase), var = "WellLetter") %>%
+    gather(key="WellNo", value = "base", -WellLetter)
   
-  colnames(SetUp) <- as.matrix(namesCol)
-  rownames(SetUp) <- letters[1:16]
+  # get concentration values per column of plate
+  conc_base_df <- tibble(WellNo = FileSetUp10x10[tableIdxBase[1]-1,tableIdxBase[2]+1:24],
+                      base_conc = FileSetUp10x10[tableIdxBase[1]-2,tableIdxBase[2]+1:24])
   
-  idx <- which(SetUp!="Nonsense"|is.na(SetUp), arr.ind = T)
-  conc <- t(apply(SetUp,1, names))
-  conc[SetUp=="DM"|is.na(SetUp)] <- NA
-  letter <- apply(SetUp,2, names)
-  drugs <- as.matrix(SetUp)
-  SetUpBase <- data.frame(drug=as.vector(drugs), conc=as.vector(conc), 
-                        letter=as.vector(letter), idx.row=idx[,1], idx.col=idx[,2])
-  SetUpBase <- filter(SetUpBase, !is.na(drug))
+  SetUpBase %<>% left_join(conc_base_df, by = "WellNo")
+  SetUpBase %<>% mutate(base_conc = ifelse(base=="DM", NA, base_conc))
+  SetUpBase <- filter(SetUpBase, !is.na(base))
   
-#get set-up for ibrutinib
+  
+# get set-up for ibrutinib
   tableIdxIbr <- which(FileSetUp10x10=="A", arr.ind = T)[2,]
-  SetUp <- FileSetUp10x10[tableIdxIbr[1]+0:15,tableIdxIbr[2]+1:24]
-  conc <- as.character(FileSetUp10x10[tableIdxIbr[1]+(0:15),tableIdxIbr[2]+25])
-  conc[conc=="Concentration (Synergie-Substanz)"] <- NA
-  SetUp <- as.matrix(SetUp)
-  rownames(SetUp) <- letters[1:16]
-  colnames(SetUp) <- 1:24
+  SetUpIbr <- FileSetUp10x10[tableIdxIbr[1]+0:15,tableIdxIbr[2]+1:24]
+  rownames(SetUpIbr) <- FileSetUp10x10[tableIdxIbr[1]+0:15,tableIdxIbr[2]]
+  colnames(SetUpIbr) <- FileSetUp10x10[tableIdxIbr[1]-1,tableIdxIbr[2]+1:24]
+  SetUpIbr <- rownames_to_column(as.data.frame(SetUpIbr), var = "WellLetter") %>%
+    gather(key="WellNo", value = "combi", -WellLetter)
   
-  #fill matrix with Ibrutinib concentration
-  for (r in 1: nrow(SetUp)){
-    if(!is.na(conc[r])) SetUp[r,is.na(SetUp[r,])] <- conc[r]
-  }
-  SetUp[grep("Ibru", SetUp)] <- sapply(strsplit(SetUp[grep("Ibru", SetUp)], split=" "),
-                                   function(l) l[[2]])
-  idx <- which(SetUp!="Nonsense"|is.na(SetUp), arr.ind = T)
-  letter <- apply(SetUp,2, names)
-  conc <- as.matrix(SetUp)
-  conc[conc=="DM"] <- NA
-  drug <- as.matrix(SetUp)
-  drug[grep("c", drug)] <- "Ibrutinib"
-  SetUpIbr <- data.frame(conc=as.vector(conc), drug=as.vector(drug),
-                       letter=as.vector(letter), idx.row=idx[,1], idx.col=idx[,2])
-  SetUpIbr <- filter(SetUpIbr, !is.na(drug))
+  # get concentration values per row of plate
+  conc_combi_df <- tibble(WellLetter = FileSetUp10x10[tableIdxIbr[1]+0:15,tableIdxIbr[2]],
+                          combi_conc = FileSetUp10x10[tableIdxIbr[1]+(0:15),tableIdxIbr[2]+25])
+  conc_combi_df %<>% mutate(combi_conc = ifelse(combi_conc == "Concentration (Synergie-Substanz)", NA, combi_conc))
+
+  SetUpIbr %<>% left_join(conc_combi_df, by = "WellLetter")
+  
+  # set conc for DM to NA
+  SetUpIbr %<>% mutate(combi_conc = ifelse(!is.na(combi), ifelse(combi=="DM", NA, combi_conc), combi_conc))
+
+  #fill in NAs with a conc value by Ibrutinib
+  SetUpIbr %<>% mutate(combi = ifelse(combi_conc %in% paste0("c", 1:10), "Ibrutinib", combi))
+  SetUpIbr <- filter(SetUpIbr, !is.na(combi))
+                       
+  # fill in row with changing values
+  SetUpIbr %<>% mutate(combi_conc = ifelse(grepl("Ibru c",combi), sub("Ibru ", "", combi), combi_conc))
+  SetUpIbr %<>% mutate(combi = ifelse(grepl("Ibru c",combi), "Ibrutinib", combi))
+
+  # merge 
+  SetUp <- full_join(SetUpIbr, SetUpBase, by=c("WellLetter", "WellNo"))
+  SetUp %<>% mutate(WellLetter = tolower(WellLetter))
 ```
 
 
@@ -108,41 +114,42 @@ FileSetUp10x10 <- read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 Validierun
 import10x10Data <- function(filename, SetUpBase, SetUpIbr){
   print(filename)
   data <- read.xlsx2(file.path(datadir10x10,filename),1, header = F, startRow=3)
+  
   #info from filename
   NameComp <- strsplit(filename, "_")[[1]]
-  PatientID <- NameComp[grep("P0",NameComp)] 
+  patID <- NameComp[grep("P0",NameComp)] 
   TestDrugA <- NameComp[3] 
   TestDrugB <- sub(".xlsx","", NameComp[4])
   
- 
   #table from excel file (ignore meta data about screen)
   tableIdx <- which(data=="<>", arr.ind = T)
   stopifnot(nrow(tableIdx)==1)
-  PlateValues <- data[tableIdx[1]+1:11,tableIdx[2]+1:24]
-  colnames(PlateValues) <- 1:24
-  rownames(PlateValues) <- letters[3:13]
+  plateValues <- data[tableIdx[1]+1:11,tableIdx[2]+1:24]
+  colnames(plateValues) <- 1:ncol(plateValues)
+  rownames(plateValues) <- letters[2 + 1:nrow(plateValues)]  #labels start with C
   
-  #data.frame match with corresponding plate set up
-  value <- as.numeric(as.vector(as.matrix(PlateValues)))
+  # turn into data.frame
+  df <- rownames_to_column(plateValues, var = "WellLetter")
+  df %<>% gather(key="WellNo", value="rawValue", -WellLetter)
+  df %<>% mutate(rawValue = as.numeric(rawValue))
+  
+  # add setup info
+  df %<>% left_join(SetUp,  by=c("WellLetter", "WellNo"))
+  
+  # fill in test drug names: test drug 1 is first of file name
+  df %<>% mutate(base = ifelse(base =="DM", "DM", ifelse(base==1,TestDrugA, TestDrugB)))
+  df %<>% rename(BaseDrug = base)
+  df %<>% rename(CombiDrug = combi)
 
-  WellNo <- SetUpBase$idx.col
-  stopifnot(SetUpBase$idx.col==SetUpIbr$idx.col)
-  WellLetter <- SetUpBase$letter
-  stopifnot(SetUpBase$letter==SetUpIbr$letter)
-  #which test drug 1 is first of file name
-  BaseDrug <- ifelse(SetUpBase$drug=="DM", "DM", ifelse(SetUpBase$drug==1,TestDrugA, TestDrugB))
-  concBaseDrug <- SetUpBase$conc
-  CombiDrug <- as.character(SetUpIbr$drug)
-  concCombiDrug <- SetUpIbr$conc
-  
-  #pure DMSO for normalization
-  pureDMSOMedian <- median(value[BaseDrug=="DM"&CombiDrug=="DM"])
-  pureDMSOMean <- mean(value[BaseDrug=="DM"&CombiDrug=="DM"])
-  normalizedValueDMSOControl <- value/pureDMSOMedian
-  
-  #get used concentrations (bug in reaad.xlsx but dilution factor is always 2 and c10 is zero, replace by hand)
+  # normalized by pure DMSO median
+  dfDMSO <- filter(df, BaseDrug=="DM" , CombiDrug=="DM")
+  df %<>% mutate(pureDMSOMedian = median(dfDMSO$rawValue))
+  df %<>% mutate(pureDMSOMean = mean(dfDMSO$rawValue))
+  df %<>% mutate(normalizedValue = rawValue/pureDMSOMedian)
+
+  # get table of concentrations (for Ibrutinib, drug A and drug B)
+  # (bug in reaad.xlsx but dilution factor is always 2 and c10 is zero, replace by hand)
   conctableIdx <- which(data=="µM"| data=="nM", arr.ind = T)
- 
   concArray <- sapply(1:3, function(i) {
     concvec <- rep(0,10)
     names(concvec) <- paste("c", 1:10, sep="")
@@ -152,31 +159,21 @@ import10x10Data <- function(filename, SetUpBase, SetUpIbr){
     concvec
   })
   colnames(concArray) <- data[conctableIdx-c(1,1)]
-  concArray <- cbind(concArray,DM=rep(0,10))
+  concArray <- cbind(concArray,DM=rep(NA,10))
   colnames(concArray)[colnames(concArray)=="CAL-101"] <- "CAL101"
   colnames(concArray)[colnames(concArray)=="Abt-199"] <- "Abt199"
   colnames(concArray)[colnames(concArray)=="ABT-263"] <- "ABT263"
-
-  print(colnames(concArray))
+  concValueDf <- concArray %>% as.data.frame() %>% 
+    rownames_to_column(var = "concId") %>% gather(key="drug", value = "concValue", -concId)
   
-  df <- data.frame(CombiDrug = CombiDrug,
-           BaseDrug = BaseDrug,
-           concBaseDrug = concBaseDrug,
-           concCombiDrug = concCombiDrug,
-           rawValue = value, 
-           pureDMSOMedian = rep(pureDMSOMedian, length(value)),
-           # pureDMSOMean=rep(pureDMSOMean, length(value)),
-           normalizedValue = normalizedValueDMSOControl,
-           PatientID = rep(PatientID, length(value)),
-           WellNo = WellNo,
-           WellLetter = WellLetter
-           )
-  for(i in 1:nrow(df)){
-    df$concBvalue[i] <- ifelse(!is.na(df$concBaseDrug[i]) & !is.na(df$BaseDrug[i]),
-                               concArray[as.character(df$concBaseDrug)[i], df$BaseDrug[i]],NA)
-        df$concCvalue[i]<-ifelse(!is.na(df$concCombiDrug[i]) & !is.na(df$CombiDrug[i]),
-                                 concArray[as.character(df$concCombiDrug)[i], df$CombiDrug[i]],NA)
-  }
+  # add true conc values to df
+  df %<>% left_join(concValueDf, by = c("CombiDrug" = "drug", "combi_conc" = "concId"))
+  df %<>% rename(concCvalue = concValue)
+
+  df %<>% left_join(concValueDf, by = c("BaseDrug" = "drug", "base_conc" = "concId"))
+  df %<>% rename(concBvalue = concValue)
+  df %<>% mutate(PatientID = patID)
+
   return(df)
   }
 ```
@@ -187,18 +184,92 @@ allFiles <- setdiff(list.files(file.path(datadir10x10), "*.xlsx"), list.files(fi
 listOfTables <- lapply(allFiles, function(file) import10x10Data(file, SetUpBase, SetUpIbr))
 for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("10x10PL%03d", l)
 df10x10 <- do.call(rbind,listOfTables)
+```
 
+```{r, echo=FALSE}
+# df10x10_old <- read.csv("~/Documents/CLL/MarinaDrugComb/Analysis/ProcessedDataTables/10x10dataframe.csv")
+# df10x10_old %<>% rename(normalizedValue = normalizedValueDMSOControl,
+#                     base_conc = concBaseDrug,
+#                     combi_conc = concCombiDrug)
+# df10x10$WellNo <- as.numeric(df10x10$WellNo)
+# samecols <- intersect(colnames(df10x10), colnames(df10x10_old))
+# 
+# df <- full_join(df10x10_old, df10x10, by=c("CombiDrug", "BaseDrug", "base_conc", "combi_conc", "PatientID", "WellNo", "WellLetter"))
+# all(df$rawValue.x == df$rawValue.y)
+# max(abs(df$normalizedValue.x- df$normalizedValue.y))
+# max(abs(df$pureDMSOMean.x- df$pureDMSOMean.y))
+# max(abs(df$pureDMSOMedian.x- df$pureDMSOMedian.y))
+```
+
+```{r}
+# use nice drug names
+df10x10 %<>% mutate(BaseDrugName = ifelse(BaseDrug == "CAL101", "Idelalisib", 
+                           ifelse(BaseDrug == "Abt199", "Venetoclax",
+                                  ifelse(BaseDrug == "ABT263","Navitoclax", BaseDrug))))
 # data overview
-df10x10 %>% group_by(BaseDrug, CombiDrug) %>% summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
+df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
+  summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
+```
 
-save(df10x10, file = file.path(outdir,"10x10.RData"))
-write.csv(df10x10, file = file.path(outdir,"10x10dataframe.csv"))
+```{r}
+save(df10x10, file = file.path(outdir, paste0("df10x10_",today,".Rdata")))
 ```
 
 
-#Image-Plots of normalized viabilties
+# Tile-Plots of normalized viabilties
+
 ```{r}
-plotTiles10x10(df10x10, "CAL101", "P0010")
+knitr::opts_chunk$set(fig.width=8)
+```
+
+## Navitoclax
+```{r 10x10_Navitoclax_P0016}
+plotTiles10x10(df10x10, "Navitoclax", "P0016")
+```
+```{r 10x10_Navitoclax_P0347}
+plotTiles10x10(df10x10, "Navitoclax", "P0347")
+```
+```{r 10x10_Navitoclax_P0445}
+plotTiles10x10(df10x10, "Navitoclax", "P0445")
+```
+```{r 10x10_Navitoclax_P0309}
+plotTiles10x10(df10x10, "Navitoclax", "P0309")
+```
+```{r 10x10_Navitoclax_P0369}
+plotTiles10x10(df10x10, "Navitoclax", "P0369")
+```
+
+## Afatinib
+```{r 10x10_Afatinib_P0010}
+plotTiles10x10(df10x10, "Afatinib", "P0010")
+```
+```{r 10x10_Afatinib_P0050}
+plotTiles10x10(df10x10, "Afatinib", "P0050")
+```
+```{r 10x10_Afatinib_P0445}
+plotTiles10x10(df10x10, "Afatinib", "P0069")
+```
+```{r 10x10_Afatinib_P0480}
+plotTiles10x10(df10x10, "Afatinib", "P0480")
+```
+```{r 10x10_Afatinib_P0484}
+plotTiles10x10(df10x10, "Afatinib", "P0484")
+```
+
+## Venetoclax
+```{r 10x10_Venetoclax_P0016}
+plotTiles10x10(df10x10, "Venetoclax", "P0016")
+```
+```{r 10x10_Venetoclax_P0347}
+plotTiles10x10(df10x10, "Venetoclax", "P0347")
+```
+```{r 10x10_Venetoclax_P0445}
+plotTiles10x10(df10x10, "Venetoclax", "P0445")
+```
+
+
+```{r}
+sessionInfo()
 ```
 
 

@@ -458,18 +458,18 @@ plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
 # 10x10 screens
 #############################
 
-plotTiles10x10 <- function(df, drB, pat, colviab = colorRampPalette(c("darkgreen", "red"))(13)){
+plotTiles10x10 <- function(df, drB, pat){
 
-    df4plot <- filter(df, PatientID==pat, BaseDrug == drB, CombiDrug == "Ibrutinib") 
-    df4plot %<>% mutate(base = paste(BaseDrug, concBaseDrug, sep="_"))
-    df4plot %<>% mutate(combi = paste(CombiDrug, concCombiDrug, sep="_"))
-    df4plot %<>%  select(combi, base, normalizedValue)
-    levelBase <- unique(df4plot$base)
-    levelCombi <- unique(df4plot$combi)
-    gg <- ggplot(df4plot, aes(x=factor(base,levels=levelBase), y=factor(combi, levels=levelCombi), fill=normalizedValue)) +
+    df4plot <- filter(df, PatientID==pat, BaseDrugName == drB, CombiDrug == "Ibrutinib") 
+    df4plot %<>% rename(viability = normalizedValue)
+    df4plot %<>%  select(concCvalue, concBvalue, viability)
+    gg <- ggplot(df4plot, aes(x=factor(concBvalue), y=factor(concCvalue), fill = viability)) +
         geom_tile() + 
         ggtitle(paste(drB, pat)) +
-        scale_fill_gradient(limits=c(0,1.4), breaks=seq(0,1.2,0.2))
-      
+        scale_fill_gradient(low = "white",high = "navy", limits=c(0,1.4)) +
+      ylab("Ibrutinib") +xlab (drB) +theme_bw(base_size = 15) + coord_fixed() +
+      theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+    gg
     return(gg)
     }  
+

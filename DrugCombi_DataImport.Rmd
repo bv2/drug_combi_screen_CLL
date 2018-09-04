@@ -139,7 +139,7 @@ importRawData <- function(filename, SetUp12, SetUpRest){
   data <- read.xlsx(file.path(datadir,"Results",filename),1)
   
   # info from filename
-  NameComp<-strsplit(filename, "_")[[1]]
+  NameComp <- strsplit(filename, "_")[[1]]
   ScreenDate <- NameComp[1]
   ScreenNo <- NameComp[2]
   PatientID <- NameComp[3] 
