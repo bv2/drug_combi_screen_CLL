@@ -17,5 +17,6 @@ The analysis contains the following parts:
 *C. Analysis of drug combination effect*
 - `DrugCombi_Combi.Rmd`: Analyse effect of drug combinations, associations to most frequent mutations and heatmaps
 - `DrugCombi_CombiSynegy.Rmd`: Look for synergisitc effect
+- `DrugCombi_10x10.Rmd`: analysis of 10x10 screens
 
 The script `plot_utils.R` contains some functions for plottings. `runAll.R` runs the whole analysis starting from the raw data by rendering all the .Rmd files above.
