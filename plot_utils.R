@@ -273,7 +273,7 @@ ggvolc = function(df, title ="", Ycut, color=c("deeppink", "navy"), xlab = "") {
 #############################
 
 # plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
-plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE){
+plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE, sep_by_TP53=FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
     select(CDrugAbrv, BDrugName, BDrugConcId, starts_with("viab"), PatientID) %>%
@@ -284,6 +284,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
                                        "additive effect (A*B)"))))
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
+  df4plot %<>% mutate(TP53 = ifelse(TP53 == 0, "TP53-wt", "TP53-mut"))
   
  
   gg <- ggplot(data=df4plot, aes(x=BDrugConcId, y=viability, col =type, group=type)) +
@@ -292,8 +293,12 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB)) +
     guides(col = guide_legend(title="")) + ylim(c(0,th))
   
-  if(sep_by_IGHV){
+  if(sep_by_IGHV & !sep_by_TP53){
     gg <- gg + facet_wrap(~IGHV)
+  } else if(!sep_by_IGHV & sep_by_TP53){
+    gg <- gg + facet_wrap(~TP53)
+  } else if(sep_by_IGHV & sep_by_TP53){
+    gg <- gg + facet_wrap(TP53~IGHV)
   }
   
   return(gg)
@@ -347,7 +352,7 @@ plotBoxplotCI <- function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
 }
 
 # plot bar plot of individual combination indices for each sample
-plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
+plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"), annotate=NULL){
   
   CI_type <- match.arg(CI_type)
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) 
@@ -362,10 +367,17 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
     df4plot$CI <- df4plot$addModelSImean
     df4plot$CIse <- df4plot$addModelSIse
   }
+  
+  # annotate by genetic features
+  if(!is.null(annotate)){
+    df4plot %<>% left_join(dfMuts4testing, by = "PatientID") 
+  }
+  
   # order patients based on the CI value
   df4plot %<>% arrange(CI)
   df4plot$PatientID = factor(df4plot$PatientID, levels = df4plot$PatientID)
   
+
   gg <- ggplot(df4plot, aes(x=PatientID, y=CI, fill=PatientID)) +
     geom_bar(stat="identity") + 
     geom_errorbar(aes(ymin = CI - CIse, ymax = CI + CIse), width = 0.3)+
@@ -376,6 +388,19 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
     theme(axis.ticks.x = element_blank(),
           axis.text.x = element_blank()) +
     guides(fill=FALSE)
+  
+  # annotate by genetic features
+  if(!is.null(annotate)){
+    gg <- gg + ylim(c(min(df4plot$CI - df4plot$CIse), max(df4plot$CI + df4plot$CIse) +0.04))
+    if("IGHV" %in% annotate){
+    gg <- gg + geom_text(aes(y = max(df4plot$CI + df4plot$CIse) +0.01, label = ifelse(IGHV==1, "*", "")), size=5)
+    gg <- gg + geom_text(x=nrow(df4plot)-10, y= min(df4plot$CI), label = "* M-CLL", col="black", size=5)
+    }
+    if("TP53" %in% annotate){
+    gg <- gg + geom_text(aes(y = max(df4plot$CI + df4plot$CIse) +0.03, label = ifelse(TP53==1, "*", "")), col="red", size=5)
+    gg <- gg + geom_text(x=nrow(df4plot)-3, y= min(df4plot$CI), label = "* TP53 mut", col="red", size=5)
+    }
+  }
   
   return(gg)
 }
