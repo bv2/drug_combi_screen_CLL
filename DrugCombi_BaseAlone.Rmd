@@ -103,14 +103,14 @@ alpha <- 0.05
 ```
 
 ## Volcanoe plot
-```{r volcanoe_base}
+```{r volcanoe_base, fig.height=15, fig.width=10}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
 df_pvals_max %<>% mutate(sig = pval.adj<alpha, col = mean.diff>0)
 
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
-  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), size=3) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
   scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
 ```
 

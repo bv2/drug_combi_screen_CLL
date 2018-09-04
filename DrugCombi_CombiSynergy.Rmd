@@ -231,7 +231,7 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type 
 ```
 ## Waterfall CI
 
-```{r Ibrutinib (100nM)_Navitoclax_CIwaterfall, fig.width=10}
+```{r Ibrutinib (100nM)_Navitoclax_CIwaterfall, fig.width=10, fig.height=3}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "SI")
 ```
 
@@ -265,7 +265,7 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = 
 
 ## Waterfall CI
 
-```{r Ibrutinib (100nM)_Afatinib_CIwaterfall, fig.width=10}
+```{r Ibrutinib (100nM)_Afatinib_CIwaterfall, fig.width=10, fig.height=3}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "SI")
 ```
 
@@ -297,7 +297,7 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type 
 ```
 
 ## Waterfall CI
-```{r Ibrutinib (100nM)_Venetoclax_CIwaterfall, fig.width=10}
+```{r Ibrutinib (100nM)_Venetoclax_CIwaterfall, fig.width=10, fig.height=3}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "SI")
 ```
 
@@ -328,13 +328,57 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type
 ```
 
 ## Waterfall CI
-```{r Ibrutinib (100nM)_Fludarabine_CIwaterfall, fig.width=10}
+```{r Ibrutinib (100nM)_Fludarabine_CIwaterfall, fig.width=10, fig.height=3}
 plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Fludarabine", CI_type = "SI")
 ```
 
 ## Scatter
 ```{r Ibrutinib (100nM)_Fludarabine_Scatter, fig.width=9}
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Fludarabine")
+```
+
+
+# Ibrutinib + MK-2206
+## Response curves
+```{r Ibrutinib (100nM)_MK-2206_Curves, fig.width=12}
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", sep_by_IGHV = FALSE)
+```
+## Boxplots CI
+```{r Ibrutinib (100nM)_MK-2206_CIboxplots_Bliss, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_MK-2206_CIboxplots_HSA, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", CI_type = "hsa")
+```
+
+
+# Ibrutinib + Everolimus
+## Response curves
+```{r Ibrutinib (100nM)_Everolimus_Curves, fig.width=12}
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", sep_by_IGHV = FALSE)
+```
+## Boxplots CI
+```{r Ibrutinib (100nM)_Everolimus_CIboxplots_Bliss, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_Everolimus_CIboxplots_HSA, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", CI_type = "hsa")
+```
+
+# Ibrutinib + Nutlin-3
+## Response curves
+```{r Ibrutinib (100nM)_Nutlin-3_Curves, fig.width=9}
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Nutlin-3", sep_by_IGHV = FALSE)
+```
+## Boxplots CI
+```{r Ibrutinib (100nM)_Nutlin-3_CIboxplots_Bliss, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Nutlin-3", CI_type = "Bliss")
+```
+
+```{r Ibrutinib (100nM)_Nutlin-3_CIboxplots_HSA, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Nutlin-3", CI_type = "hsa")
 ```
 
 
@@ -382,7 +426,41 @@ plotScattterVsCombi(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Idelalisib")
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Idelalisib", CI_type = "Bliss")
 ```
 
+
+# Counterscreen Afatinib
+## Waterfall SI
+```{r AfatinibCounter_WaterfallSI, fig.height= 10, fig.height=3}
+B_BCRi <- DrugMetaList$DrugInfoBase %>% filter(grepl("Btk", Target) | grepl("PI3Kδ", Target) | grepl("Syk", Target))
+
+df_orderedbyAfatinib <-  filter(dfsynSummaryConcPat, CDrugAbrv == "Afatinib") %>% arrange(addModelSImed)
+dfsynSummaryConcPat$BDrugName <- factor(dfsynSummaryConcPat$BDrugName, df_orderedbyAfatinib$BDrugName)
+
+
+dfsynSummaryConcPat %>% filter(CDrugAbrv == "Afatinib") %>%
+  mutate(type = ifelse(BDrugName %in% B_BCRi$niceName, "BCRi", "other")) %>%
+  ggplot(aes(x = BDrugName, y = addModelSImed, fill=type)) + geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1),
+        axis.ticks.x = element_blank(),
+        panel.background = element_rect(fill = "white"))  +
+  ylab("Synergy Index (SI)") + xlab("Base compound")  +guides(fill=FALSE) +
+  scale_fill_manual(values = c(BCRi = "forestgreen", other= "gray"))
+```
+
+## Afatinib + Ibrutinib (counterscreen)
+
+### Scatterplot
+```{r Afatinib_Ibrutinib_Scatterplot, fig.width=9}
+plotScattterVsCombi(dfsyn,  drC = "Afatinib", drB = "Ibrutinib")
+```
+
+### Waterfall CI
+```{r Afatinib_Ibrutinib_CIwaterfall, fig.width=10, fig.height=3}
+plotWaterfallCI(dfsynSummaryConc, drC = "Afatinib", drB = "Ibrutinib", CI_type = "SI")
+```
+
+
 ```{r}
 sessionInfo()
 ```
+
 

@@ -78,12 +78,28 @@ df_nsamples %>%
 ```
 
 # Comparison of different concentrations of drugC (Ibrutinib)
-```{r Ibr100vsIbru10, fig.width=15, fig.height=5}
+```{r Ibr100vsIbru10, fig.width=15, fig.height=6}
 gg1 <- plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Ibrutinib (10nM)", type="boxplot_joint")
 gg2 <- plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Ibrutinib (10nM)", type="scatter_joint")
 cowplot::plot_grid(gg1, gg2, align = "tb", axis = "hv", labels = c("A", "B"),
-                   rel_widths = c(1,2), label_size = 18)
+                   rel_widths = c(1,1.7), label_size = 18, vjust = 1)
 ```
+
+## Comparison Ibrutinib vs Idelalisib
+### Overall
+```{r Ibru100vsIdel, fig.height=9, fig.width=7.5}
+plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_factBDrug") +guides(col=FALSE)
+```
+
+### In combination with Afatinib or Spebrutinib
+```{r IbruvsIdel_inCombis, fig.width=9, fig.height=4}
+df4ana %>% filter(BDrugName %in% c("Afatinib","Spebrutinib"), CDrugAbrv %in% c("Ibrutinib (100nM)", "Idelalisib")) %>% 
+  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=CDrugAbrv)) + facet_wrap(~BDrugName) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=CDrugAbrv, label =  ..p.signif..), hide.ns = TRUE) +
+  guides(fill = guide_legend(title="Combination compound")) + xlab("concentration") +ylab("viability") +theme_bw()
+
+```
+
 
 # Viability heatmaps in combination with ibrutinib100
 
@@ -185,7 +201,7 @@ alpha <- 0.05
 ```
 
 All tested genetic features
-```{r volcanoe_combi_all, fig.height=15}
+```{r volcanoe_combi_all, fig.height=15, fig.width=10}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
   filter(!is.na(pval))%>%
@@ -200,7 +216,7 @@ ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
 ```
 
 Only IGHV and TP53
-```{r volcanoe_combi, fig.width=15, fig.height=9}
+```{r volcanoe_combi, fig.width=13.5, fig.height=7}
 #IGHV
 dfIGHV <- df_pvals_max %>% filter(mutation == "IGHV")
 df <- data.frame(X = dfIGHV$mean.diff,
@@ -250,7 +266,7 @@ dfSummaryCalls %>% gather(key="legend", value = "n", -1) %>%
 
 ## Boxplots Ibrutinib
 Draw boxplots for TP53 and IGHV including all drug combinations that have significant concentrations at an FDR of 1%.
-```{r boxplot_combiIbru100_TP53, fgi.width=9, fig.height=4}
+```{r boxplot_combiIbru100_TP53, fig.width=6, fig.height=3.5}
 sel_combis <- c("Ibrutinib (100nM)+Nutlin-3","Ibrutinib (100nM)+Fludarabine")
 stopifnot(sel_combis %in% df_signTP53$combi)
 
@@ -258,11 +274,11 @@ df_combis_vs_muts %>% filter(mutation == "TP53", combi %in% sel_combis) %>%
   mutate(status = ifelse(status ==0, "wt","mut")) %>%
   ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability")
+  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability") +theme_bw()
 
 ```
 
-```{r boxplot_combiIbru100_IGHV, fgi.width=9, fig.height=4}
+```{r boxplot_combiIbru100_IGHV, fig.width=9, fig.height=3.5}
 sel_combis <- c("Ibrutinib (100nM)+AZD7762","Ibrutinib (100nM)+PF 477736", "Ibrutinib (100nM)+Dasatinib")
 stopifnot(sel_combis %in% df_signIGHV$combi)
 
@@ -270,11 +286,11 @@ df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>%
   mutate(status = ifelse(status ==0, "wt","mut")) %>%
   ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability")
+  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability") +theme_bw()
 ```
 
 ## Boxplots Idealisib
-```{r boxplot_combiIdea_IGHV, fgi.width=9, fig.height=4}
+```{r boxplot_combiIdea_IGHV, fig.width=9, fig.height=3.5}
 sel_combis <- c("Idelalisib+AZD7762","Idelalisib+PF 477736", "Idelalisib+Dasatinib")
 stopifnot(sel_combis %in% df_signIGHV$combi)
 
@@ -282,7 +298,7 @@ df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>%
   mutate(status = ifelse(status ==0, "wt","mut")) %>%
   ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability")
+  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability") +theme_bw()
 ```
 
 
