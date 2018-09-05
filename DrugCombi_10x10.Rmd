@@ -178,13 +178,13 @@ import10x10Data <- function(filename, SetUp){
   }
 ```
 
-Different from Marina normalized values by median instead of mean (as done in other combi screens).
 ```{r}
 allFiles <- setdiff(list.files(file.path(datadir10x10), "*.xlsx"), list.files(file.path(datadir10x10),"Protokoll"))
 listOfTables <- lapply(allFiles, function(file) import10x10Data(file, SetUp))
 for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("10x10PL%03d", l)
 df10x10 <- do.call(rbind,listOfTables)
 ```
+
 
 ```{r, echo=FALSE}
 # df10x10_old <- read.csv("~/Documents/CLL/MarinaDrugComb/Analysis/ProcessedDataTables/10x10dataframe.csv")
@@ -210,6 +210,20 @@ df10x10 %<>% mutate(BaseDrugName = ifelse(BaseDrug == "CAL101", "Idelalisib",
 df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
   summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
 ```
+Correct concentrations according (wrong in tables):
+2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0
+```{r}
+conc_BCL2 <- sapply(0:9, function(i) 2 * 0.5^i)
+conc_BCL2[10] <- 0
+names(conc_BCL2) <- paste0("c", 1:10)
+conc_other <- sapply(0:9, function(i) 20 * 0.5^i)
+conc_other[10] <- 0
+names(conc_other) <- paste0("c", 1:10)
+df10x10 %<>% mutate(concBvalue = ifelse(BaseDrugName %in% c("Afatinib", "Idelalisib"), conc_other[base_conc],
+                                 ifelse(BaseDrugName %in% c("Navitoclax", "Venetoclax"),  conc_BCL2[base_conc], NA)))
+df10x10 %<>% mutate(concCvalue = ifelse(CombiDrug == "Ibrutinib", conc_other[combi_conc], NA))
+```
+
 
 ```{r}
 save(df10x10, file = file.path(outdir, paste0("df10x10_",today,".Rdata")))
@@ -350,10 +364,12 @@ summary(rs)
 # SynergyFinder
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 
-```{r}
+```{r Loewe_surface}
 library("synergyfinder")
-synergyfinder::mathews_screening_data
-data <- filter(df10x10, BaseDrugName == "Afatinib", PatientID == "P0069") %>%
+for(dr in unique(df10x10$BaseDrug)){
+  df <- filter(df10x10, BaseDrugName == dr)
+  for(pat in unique(df$PatientID)){
+      df <- filter(df10x10, PatientID == pat) %>%
   select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
          ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
          Row = base_conc, Col = combi_conc) %>%
@@ -362,11 +378,16 @@ data <- filter(df10x10, BaseDrugName == "Afatinib", PatientID == "P0069") %>%
          Col = sub("c", "", Col),
          Response = 100 * Response) # need percentage
 data <- ReshapeData(data, data.type = "viability") # does not work with multiple replicates
+#re-order by concentrations
+data$dose.response.mats[[1]] <- data$dose.response.mats[[1]][order(rownames(data$dose.response.mats[[1]])), order(colnames(data$dose.response.mats[[1]]))]
 PlotDoseResponse(data)
 
-synergy.score <- CalculateSynergy(data,method = "ZIP", correction = TRUE, Emin = 0, Emax = 100)
-PlotSynergy(synergy.score, type = "all")
+synergy.score <- CalculateSynergy(data,method = "Loewe", correction = TRUE, Emin = 0, Emax = 100)
+PlotSynergy(synergy.score, type = "2D")
+  }
+  }
 ```
+
 
 Other packages: drc, SYNERGY
 
