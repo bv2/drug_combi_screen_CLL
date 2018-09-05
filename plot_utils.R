@@ -88,7 +88,8 @@ return(gg)
 # useAverage - take avaerage across concentrations specified in conc4average?
 # nOcc - number of occurences for genetic aberrations to be annotated 
 plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDrug", "DrugDrug"), useAverage=FALSE,
-                        conc4average = paste0("c",1:5), nOcc = 10, DrugDrugbyIGHV=FALSE, returnMat = FALSE){
+                        conc4average = paste0("c",1:5), nOcc = 10, DrugDrugbyIGHV=FALSE, returnMat = FALSE,
+                        dist2use = "euclidean"){
   
   dfBPlusC <- filter(df4ana, CDrugAbrv == CDrugAbrv4plot)
   dfBPlusC %<>% mutate(BDrugNameConc = paste(BDrugName, BDrugConcId, sep="_"))
@@ -145,8 +146,8 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
       # outlying values cut off at 1.4
       effectBPlusC_mat[is.na(effectBPlusC_mat)] <- 1.4
     }
-      pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows="correlation",
-               clustering_distance_cols = "correlation",
+      pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows=dist2use,
+               clustering_distance_cols = dist2use,
                color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
                breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
                treeheight_row = 15, treeheight_col = 15, annotation_row = dfanno, annotation_colors =anno_colors,
@@ -157,14 +158,14 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
       if(DrugDrugbyIGHV) {
         mat <- effectBPlusC_mat[patsMCLL, ]
         corDrug <- cor(mat, use="complete.obs")
-        hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows="correlation",
-               clustering_distance_cols = "correlation",
+        hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
+               clustering_distance_cols = dist2use,
                color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
                treeheight_row = 15, treeheight_col = 15, main = "M-CLL",breaks=seq(0,1,0.01))
         mat <- effectBPlusC_mat[patsUCLL, ]
         corDrug <- cor(mat, use="complete.obs")
-        hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows="correlation",
-                 clustering_distance_cols = "correlation",
+        hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
+                 clustering_distance_cols = dist2use,
                  color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
                  treeheight_row = 15, treeheight_col = 15, main = "U-CLL",
                  breaks=seq(0,1,0.01))
@@ -172,8 +173,8 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
         
       } else {
         corDrug <- cor(effectBPlusC_mat, use="complete.obs")
-        pheatmap(corDrug, na_col="gray", clustering_distance_rows="correlation",
-                 clustering_distance_cols = "correlation",
+        pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
+                 clustering_distance_cols = dist2use,
                  color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
                  treeheight_row = 15, treeheight_col = 15)
       }

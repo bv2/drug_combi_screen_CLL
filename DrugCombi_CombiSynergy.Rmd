@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 #Introduction
 
@@ -71,6 +71,24 @@ To explore the synergistic effect of two drug we use the following measures:
 Denoting the viability values as $v_X$ for base drug alone (B), combination compund alone (C) and the combination (BC) and $e_X = 1- max(1, v_X))$.
 
 # Add combination indices for individual measurements
+```{r}
+# Bliss and SI are based on identical predicitions for combi, difference only  v* - v instea of (1 - v*)/(1-v) and no trhesolding at 1.
+
+# dfsyn %<>% dplyr::rename(viabB = effectB,
+#                   viabC = effectC,
+#                   viabBC = effectBC)
+# dfsyn %<>% mutate(effB = 1- pmin(viabB,1),
+#                   effC = 1- pmin(viabC,1),
+#                   effBC = 1- pmin(viabBC, 1))
+# dfsyn %<>% mutate(viabBC_add = pmin(1,viabB) * pmin(1,viabC),
+#                   effBC_add = 1- viabBC_add)
+# dfsyn %<>% mutate(addModelSI =  effBC_add/effBC,
+#                   BlissCI = (effB + effC - effB * effC)/effBC) 
+# 
+# dfsyn %<>% mutate(hsaCI = ifelse(effBC!=0, pmax(effB, effC)/effBC,1))
+# dfsyn %<>% mutate(BlissCI = ifelse(effBC!=0,(effB + effC - effB * effC)/effBC, 1))
+```
+
 ```{r CI}
 dfsyn <- df4ana
 rm(df4ana)
@@ -103,6 +121,7 @@ If we use the acutal concentration values the measure is influenced by the absol
 --> Use a simple average across concentrations giving all concentrations same influence on the snergy index.
 
 ```{r}
+# by mean across concentrations
 dfsynSummaryConc <- group_by(dfsyn, CDrugAbrv, CDrugName, CDrugID, CDrugConc, CDrugNameLong,
                  BDrugName, BDrugID, PatientID) %>%
   summarize(BlissCImean = mean(BlissCI, na.rm =TRUE),
@@ -113,11 +132,20 @@ dfsynSummaryConc <- group_by(dfsyn, CDrugAbrv, CDrugName, CDrugID, CDrugConc, CD
                     addModelSIse = sd(addModelSI, na.rm =TRUE)/ sqrt(sum(!is.na(addModelSI)))) %>%
   ungroup()
   
+# by median across patients
 dfsynSummaryConcPat <- dfsynSummaryConc %>% 
   group_by(CDrugAbrv, CDrugName, CDrugID, CDrugConc, CDrugNameLong, BDrugName, BDrugID) %>%
   summarize(BlissCImed = median(BlissCImean),
                     hsaCImed = median(hsaCImean),
                     addModelSImed = median(addModelSImean)) %>%
+  ungroup()
+
+# by median across patients
+dfsynSummaryPat <- dfsyn %>% 
+  group_by(CDrugAbrv, CDrugName, CDrugID, CDrugConc, CDrugNameLong, BDrugName, BDrugID, BDrugConc, BDrugConcId) %>%
+  summarize(BlissCImed = median(BlissCI, na.rm = TRUE),
+                    hsaCImed = median(hsaCI, na.rm =TRUE),
+                    addModelSImed = median(addModelSI, na.rm =TRUE)) %>%
   ungroup()
 ```
 
@@ -128,26 +156,15 @@ SImat <- dfsynSummaryConcPat %>%
   dplyr::rename(SI = addModelSImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-myHeatmap(t(SImat), colors=c("navy", "blue", "white", "red","darkred"))
+myHeatmap(t(SImat), colors=c("navy", "lightblue", "white", "orangered","darkred"))
 colSums(SImat>0)
 
-pheatmap(t(SImat), breaks = seq(0, max(SImat),0.01), main = "SI")
+pheatmap(t(SImat), breaks = seq(0, max(SImat), length.out = 100), main = "SI",
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100))
 
 dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>% filter(CDrugAbrv !="Duvelisib") %>%
   rename(SI = addModelSImed) %>% arrange(-SI)
-```
-
-What happed for Duvelisib?
-```{r Duvelisib}
-dfIPI <- dfsyn %>% filter(CDrugAbrv=="Duvelisib") %>% group_by(BDrugName, BDrugConcId) %>% 
-  summarize(vB = mean(viabB), vC = mean(viabC), vBC = mean(viabBC), vadd = mean(viabBC_add)) %>%
-  gather(key = "type", value = "viability", -(1:2))
-ggplot(dfIPI, aes(x= BDrugConcId, y=viability, col=type)) + geom_point()  +facet_wrap(~BDrugName)
-
-dfsyn %>% filter(CDrugAbrv=="Duvelisib", BDrugName == "Doxorubicine") %>%
-  gather(key = "type", value = "viability", starts_with("viab")) %>%
-  ggplot(aes(x=BDrugConcId, y = viability, col=type)) + geom_point() + facet_wrap(~PatientID)
 ```
 
 # Heatmap HSA
@@ -174,42 +191,73 @@ pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Bliss Index",
 ```
 
 
-# Linear model with interaction terms
-Only include combination with at least 10 samples
-```{r}
-# fit a linear model for each drug-drug combi and concentration (conc are not independent) across samples
-dfn <- dfsyn %>% group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% summarise(nsamples = n()) %>% filter(nsamples>=10)
+<!-- # Linear model with interaction terms -->
+<!-- Only include combination with at least 10 samples -->
+<!-- ```{r} -->
+<!-- # fit a linear model for each drug-drug combi and concentration (conc are not independent) across samples -->
+<!-- dfn <- dfsyn %>% group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% summarise(nsamples = n()) %>% filter(nsamples>=10) -->
 
-dflm <- dfsyn %>% left_join(dfn, by= c("CDrugAbrv", "BDrugName", "BDrugConcId")) %>%
-  filter(nsamples >= 10) %>%
-  group_by(CDrugAbrv, BDrugName, BDrugConcId) %>%
-  do(lm.out = lm(log(.$viabBC) ~ log(.$viabB) + log(.$viabC) + log(.$viabC)*log(.$viabB)))
-dflm %<>% mutate(intercept = lm.out$coefficient[1],
-                 betaB = lm.out$coefficient[2],
-                 betaC = lm.out$coefficient[3],
-                 betaBC = lm.out$coefficient[4],
-                 pBC = coefficients(summary(lm.out))[4,4])
+<!-- dflm <- dfsyn %>% left_join(dfn, by= c("CDrugAbrv", "BDrugName", "BDrugConcId")) %>% -->
+<!--   filter(nsamples >= 10) %>% -->
+<!--   group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% -->
+<!--   do(lm.out = lm(log(.$viabBC) ~ log(.$viabB) + log(.$viabC) + log(.$viabC)*log(.$viabB))) -->
+<!-- dflm %<>% mutate(intercept = lm.out$coefficient[1], -->
+<!--                  betaB = lm.out$coefficient[2], -->
+<!--                  betaC = lm.out$coefficient[3], -->
+<!--                  betaBC = lm.out$coefficient[4], -->
+<!--                  pBC = coefficients(summary(lm.out))[4,4]) -->
+<!-- ``` -->
+
+<!-- ```{rlm_heatmap, fig.height=9} -->
+<!-- betamat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>% -->
+<!--   summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>% -->
+<!--   select(CDrugAbrv,BDrugName, betaBC) %>% -->
+<!--   spread(key=BDrugName, value=betaBC) %>%  -->
+<!--   column_to_rownames("CDrugAbrv") %>% as.matrix() -->
+
+<!-- myHeatmap(t(betamat), colors=c("navy", "blue", "white", "red","darkred")) -->
+
+<!-- pmat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>% -->
+<!--   summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>% -->
+<!--   select(CDrugAbrv,BDrugName, pBC) %>% -->
+<!--   spread(key=BDrugName, value=pBC) %>%  -->
+<!--   column_to_rownames("CDrugAbrv") %>% as.matrix() -->
+
+<!-- myHeatmap(-log10(t(pmat)), colors=c("white", "white", "white", "grey","black")) -->
+
+<!-- dflm$padj = p.adjust(dflm$pBC, method = "BH") -->
+<!-- filter(dflm, padj < 0.05) -->
+<!-- ``` -->
+
+# Volanoe SI vs TP53 and Ibrutinib
+
+```{r}
+alpha <- 0.05
+minOcc <- 3
 ```
 
-```{rlm_heatmap, fig.height=9}
-betamat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
-  summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
-  select(CDrugAbrv,BDrugName, betaBC) %>%
-  spread(key=BDrugName, value=betaBC) %>% 
-  column_to_rownames("CDrugAbrv") %>% as.matrix()
+```{r volcanoe_SI}
+dfSI_gen_test <- dfsynSummaryConc %>%
+  select(BDrugName, CDrugAbrv, addModelSImean, PatientID) %>%
+  left_join(gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
+dfSI_gen_test %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
 
-myHeatmap(t(betamat), colors=c("navy", "blue", "white", "red","darkred"))
-
-pmat <- dflm %>% group_by(CDrugAbrv, BDrugName) %>%
-  summarize(cidx = which.max(betaBC), BDrugConcId = BDrugConcId[cidx],pBC = pBC[cidx], betaBC = betaBC[cidx]) %>%
-  select(CDrugAbrv,BDrugName, pBC) %>%
-  spread(key=BDrugName, value=pBC) %>% 
-  column_to_rownames("CDrugAbrv") %>% as.matrix()
-
-myHeatmap(-log10(t(pmat)), colors=c("white", "white", "white", "grey","black"))
-
-dflm$padj = p.adjust(dflm$pBC, method = "BH")
-filter(dflm, padj < 0.05)
+# only inclduing durg-drug combinations with at least 3 samples from mutated and unmutated group
+df_pvals_SI_vs_muts <- group_by(dfSI_gen_test, CDrugAbrv, BDrugName, mutation, combi) %>%
+  summarize(n_muts= sum(status==1), n_wt =sum(status==0),
+            pval = ifelse(n_muts<minOcc | n_wt<minOcc, NA,t.test(addModelSImean ~ status, var.equal= TRUE)$p.value),
+            mean.diff = ifelse(n_muts<minOcc | n_wt<minOcc, NA,diff(t.test(addModelSImean ~ status, var.equal= TRUE)$estimate))) %>%
+  filter(!is.na(pval)) %>% ungroup()
+df_pvals_SI_vs_muts$pval.adj <-  p.adjust(df_pvals_SI_vs_muts$pval, method="BH")
+hist(df_pvals_SI_vs_muts$pval)
+arrange(df_pvals_SI_vs_muts, pval.adj)
+filter(df_pvals_SI_vs_muts, pval.adj < alpha)
+ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.diff > 0)) +
+  geom_point(alpha=0.7) +
+  ggrepel::geom_label_repel(aes(label=ifelse(pval.adj < alpha, combi, "")), label.size= 0, min.segment.length = 0, fill = NA) +
+  scale_color_manual(values= c("deeppink", "navy")) + guides(col=FALSE) +
+  theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab("Mean SI difference")  +facet_wrap(~mutation)
 ```
 
 # Ibrutinib (100nM) + Navitoclax

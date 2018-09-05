@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 
 #Introduction
@@ -291,9 +291,6 @@ for( i in 1:length(unique(df4ana$patrep))) {
 ## Drop Screen 1
 As no good DMSO plate available screen1 is dropped for all subseqeunt analysis
 ```{r}
-dftmp <- filter(CompleteDF, ScreenNo == "SS2", CombiDrugName =="DMSO", BaseDrugName == "DMSO")
-hist(dftmp$normalizedValue)
-
 CompleteDF <- filter(CompleteDF, ScreenNo!="SS1")
 df4anaAvreplicates <- filter(df4anaAvreplicates,  ScreenNo!="SS1" )
 df4ana <- filter(df4ana, ScreenNo!="SS1")
@@ -317,7 +314,7 @@ df4anaAvreplicatesRmOutliers <- filter(df4anaAvreplicates, effectB <=filter_th &
 ```
 
 ## Are there non-active compounds?
-```{r}
+```{r hist_effectC}
 dfC <- df4ana %>% select(CDrugAbrv, effectC, PatientID) %>% filter(!duplicated(.)) 
 dfC %>% ggplot(aes(x=effectC)) +geom_histogram() + facet_wrap(~ CDrugAbrv) +
   geom_vline(xintercept = 1, col = "red") +xlab("viability of combination compound alone")
@@ -325,7 +322,7 @@ dfC %>% ggplot(aes(x=effectC)) +geom_histogram() + facet_wrap(~ CDrugAbrv) +
 df4ana %>% group_by(CDrugAbrv) %>% summarize(var = var(pmin(1,effectC))) %>% arrange(var)
 ```
 
-```{r}
+```{r hist_effects_B}
 dfB <- df4ana %>% select(BDrugName, BDrugConcId, effectB, PatientID) %>% filter(!duplicated(.)) 
 dfB %>% ggplot(aes(x=effectB, fill = BDrugConcId)) +geom_histogram() + facet_wrap(~ BDrugName) +
   geom_vline(xintercept = 1, col = "red") +xlab("viability of base compound alone")
@@ -334,6 +331,36 @@ df4ana %>% group_by(BDrugName, BDrugConcId) %>% summarize(var = var(pmin(1,effec
   arrange(var) %>% group_by(BDrugName) %>% summarize(max_var = max(var), min_mean = min(mean))%>% 
   arrange(max_var)
 ```
+
+## Are there compounds that show a different effect in as combination drug than as base durg
+```{r comparison_drC_drB}
+commonDrugs <- intersect(df4ana$CDrugName, df4ana$BDrugName)
+dfcombi <- DrugMetaList$DrugInfoCombi %>% filter(niceName %in% commonDrugs) %>% select(name = niceName, conc)
+dfbase <- DrugMetaList$DrugInfoBase %>% filter(niceName %in% commonDrugs) %>%select(name = niceName, starts_with("c"))
+full_join(dfcombi, dfbase, by = "name") %>% mutate()
+matchConcs <- c("c4", "c5")
+
+df4ana %>%
+  filter( (BDrugName %in% commonDrugs & BDrugName == CDrugAbrv) | CDrugAbrv == "Ibrutinib (100nM)" & BDrugName == "Ibrutinib" , BDrugConcId %in% matchConcs) %>%
+  mutate(label = paste(CDrugName, CDrugConc*1000, "nM")) %>%
+  ggplot(aes(x=effectB, y =effectC, col = factor(BDrugConc*1000))) + geom_point() +facet_wrap(~label) +geom_abline(slope=1, intercept=0) +
+  guides(col = guide_legend(title = "conc (B, nM)")) +coord_equal() +
+  geom_hline(yintercept = 1, lty = "dashed", col="gray") + 
+  geom_vline(xintercept = 1, lty = "dashed", col="gray") 
+
+```
+For Duvelisib none of the two neighboring concentration is similiar -> exclude this from the screen. 
+YM155 and Venetoclax are similar in the lower concentration. Fludarabe and afatinib have no or a pro-survival effect.
+
+Exclude Duvelisib from futher analysis, as it seems to be inactive as combination compound and not as base compound
+```{r}
+df4ana %<>% filter(CDrugName != "Duvelisib")
+df4anaAvreplicates %<>%  filter(CDrugName != "Duvelisib")
+df4anaAvreplicatesRmOutliers %<>%  filter(CDrugName != "Duvelisib")
+CompleteDF %<>%  filter(CombiDrug != "Duvelisib")
+```
+
+
 
 #Data Export
 

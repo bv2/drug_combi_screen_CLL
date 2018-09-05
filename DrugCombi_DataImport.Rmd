@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 
 #Introduction
@@ -86,6 +86,10 @@ num2id = function(nums) {
   })
 }
 DrugInfoBase[,1] <- num2id(as.vector(DrugInfoBase[,1]))
+
+
+# according to Marina: Chaetoglobsin : 7muM (error in table)
+DrugInfoBase[which(DrugInfoBase$Substance == "Chaetoglobosin A"), grepl("^c", colnames(DrugInfoBase))] <- sapply(0:4, function(i) 7 * 0.25^i)
 
 # complete list of drugs with names and ids (from Gosia)
 load(file.path(datadir, "DrugMetaData.RData"))
@@ -226,7 +230,7 @@ Add additional information on base drugs:
 ConcValueBaseDrug <- sapply(1:nrow(CompleteDF), function(i) {
   concID <- grep(CompleteDF$concBaseDrug[i],colnames(DrugInfoBase))
   drugID <- CompleteDF$BaseDrugID[i]
-  if(is.na(concID) | !drugID %in% DrugInfoBase$No)  return(NA)
+  if(any(is.na(concID)) | !drugID %in% DrugInfoBase$No)  return(NA)
   else return(DrugInfoBase[DrugInfoBase$No==drugID,concID])
 })
 CompleteDF$ConcValueBaseDrug <- ConcValueBaseDrug
@@ -252,7 +256,7 @@ DrugInfoCombi <- data.frame(abrv=CombiDrugs,
                                   "AVL", "CAL-101", "R406", "Fludarabine",
                                   "IPI-145", "LGX", "YM155", "Abt-199", "Pomalidomide", "Afatinib",
                                   "Everolimus"),
-                            conc=c(NA, 0.1, 1, 1,1,1, 1, NA, 1, 0.01, 0.005,1,1,1) # info taken from "Versuche-Patienten-Drugs.xlsx",
+                            conc=c(NA, 0.1, 1, 1,1,1, 1, 1, 1, 0.01, 0.005,1,1,1) # info taken from "Versuche-Patienten-Drugs.xlsx",
 )
 # comment by Marina: Values in table are off by 1/10 except for 5nM and 10nM
 DrugInfoCombi %<>% mutate(conc = ifelse(name %in% c("YM155", "Abt-199"), conc, conc/10))
@@ -285,14 +289,16 @@ For base compounds
 ```{r}
 df_BNametoNiceName <- data.frame(
   BaseDrugName = unique(CompleteDF$BaseDrugName),
-  niceName = c("DMSO", "Navitoclax", "Idelalisib", "Fludarabine", "Selumetinib", "AZD7762", "TAE684", "R406", "BAY 11-7085", "KU-60019", "Dasatinib", "Arsentrioxide", "PF 477736", "Venetoclax", 
-               "Ruxolitinib", "Doxorubicine", "Silmitasertib", "Ibrutinib", "SNS-032", "Nutlin-3", "Afatinib", "NSC74859", "MK-2206", "YM155", "SGX-523", "Chaetoglobosin A", "Everolimus", "LY2603618",
+  niceName = c("DMSO", "Navitoclax", "Idelalisib", "Fludarabine", "Selumetinib", "AZD7762", "TAE684", "R406", "BAY 11-7085",
+               "KU-60019", "Dasatinib", "Arsentrioxide", "PF 477736", "Venetoclax", 
+               "Ruxolitinib", "Doxorubicine", "Silmitasertib", "Ibrutinib", "SNS-032", "Nutlin-3", "Afatinib", "NSC74859",
+               "MK-2206", "YM155", "SGX-523", "Chaetoglobosin A", "Everolimus", "LY2603618",
                "Spebrutinib", "Duvelisib", "SD07", "Bayer-18", "Sotrastaurin")
 )
 df_match <- df_BNametoNiceName %>% 
     rowwise() %>% 
     mutate(Matches =  BaseDrugName == niceName | grepl(niceName, BaseDrugName))
-stopifnot(sum(df_match$Matches) <= nrow(df_match) -5)
+stopifnot(sum(df_match$Matches) >= nrow(df_match) - 6)
 
 # add to result data frame
 CompleteDF %<>% left_join(df_BNametoNiceName, by = "BaseDrugName")
@@ -305,22 +311,35 @@ DrugInfoBase %<>% left_join(df_BNametoNiceName, by = c("Substance" = "BaseDrugNa
 
 For combination compounds
 ```{r}
-df_CNametoNiceName <- data.frame(
+df_CAbrvtoNiceName <- data.frame(
   CombiDrug = unique(CompleteDF$CombiDrug),
   niceName = c(NA , "DMSO", "Ibrutinib (10nM)", "Ibrutinib (100nM)", "Spebrutinib", "Idelalisib", "R406", "Fludarabine", "Duvelisib", "Encorafenib", "YM155", "Venetoclax", "Pomalidomide", "Afatinib", "Everolimus")
 )
-df_match <- df_CNametoNiceName %>% 
+df_CNametoNiceName <- data.frame(
+  CombiDrugName = unique(CompleteDF$CombiDrugName),
+  niceName = c(NA , "DMSO", "Ibrutinib", "Spebrutinib", "Idelalisib", "R406", "Fludarabine", "Duvelisib", "Encorafenib", "YM155", "Venetoclax", "Pomalidomide", "Afatinib", "Everolimus")
+)
+
+df_match <- df_CAbrvtoNiceName %>% 
     rowwise() %>% 
     mutate(Matches =  CombiDrug == niceName | grepl(substr(CombiDrug,1,8), niceName))
-stopifnot(sum(df_match$Matches, na.rm = TRUE) <= nrow(df_match) - 5)
+stopifnot(sum(df_match$Matches, na.rm = TRUE) >= nrow(df_match) - 6)
+
+df_match <- df_CNametoNiceName %>% 
+    rowwise() %>% 
+    mutate(Matches =  CombiDrugName == niceName)
+stopifnot(sum(df_match$Matches, na.rm = TRUE) >= nrow(df_match) - 6)
 
 # add to result data frame
-CompleteDF %<>% left_join(df_CNametoNiceName, by = "CombiDrug")
+CompleteDF %<>% left_join(df_CAbrvtoNiceName, by = "CombiDrug")
 CompleteDF$CombiDrug <- NULL
 CompleteDF %<>% dplyr::rename(CombiDrug = niceName)
+CompleteDF %<>% left_join(df_CNametoNiceName, by = "CombiDrugName")
+CompleteDF$CombiDrugName <- NULL
+CompleteDF %<>% dplyr::rename(CombiDrugName = niceName)
 
 # add to drug info
-DrugInfoCombi %<>% left_join(df_CNametoNiceName, by = c("abrv" = "CombiDrug"))
+DrugInfoCombi %<>% left_join(df_CAbrvtoNiceName, by = c("abrv" = "CombiDrug"))
 ```
 
 * not used so far: d0 tables, SS-IP screen

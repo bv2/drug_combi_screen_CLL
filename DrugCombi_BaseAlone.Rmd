@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 
 #Introduction
@@ -103,7 +103,7 @@ alpha <- 0.05
 ```
 
 ## Volcanoe plot
-```{r volcanoe_base, fig.height=15, fig.width=10}
+```{r volcanoe_base, fig.height=7, fig.width=7}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
@@ -184,7 +184,7 @@ pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treehe
 effectB_mat[is.na(effectB_mat)] <- 1.4
 
 # add genetic background
-dfanno <- dfMuts %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
+dfanno <- dfMuts4testing %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
 dfanno <- as.data.frame(ifelse(dfanno==1, "mut", "wt"))
 
 # set colors for mutation status
@@ -193,8 +193,8 @@ names(cols_mut) <- c("wt", "mut")
 anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
 names(anno_colors) <- colnames(dfanno)
 
- pheatmap(effectB_mat, na_col="gray", clustering_distance_rows="correlation",
-         clustering_distance_cols = "correlation",
+ pheatmap(effectB_mat, na_col="gray", clustering_distance_rows="euclidean",
+         clustering_distance_cols = "euclidean",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = FALSE,
          treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)
@@ -212,7 +212,7 @@ effectB_mat_av <- df_effectB %>%
   as.matrix()
 
 # add genetic background
-dfanno <- dfMuts %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
+dfanno <- dfMuts4testing %>% column_to_rownames("PatientID") %>% select(which(colSums(.) > 10))
 dfanno <- as.data.frame(ifelse(dfanno==1, "mut", "wt"))
 
 # set colors for mutation status
@@ -221,8 +221,8 @@ names(cols_mut) <- c("wt", "mut")
 anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
 names(anno_colors) <- colnames(dfanno)
 
- pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="correlation",
-         clustering_distance_cols = "correlation",
+ pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="v",
+         clustering_distance_cols = "euclidean",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
          treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)

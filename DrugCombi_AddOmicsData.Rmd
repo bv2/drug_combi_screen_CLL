@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 
 #Introduction
@@ -124,7 +124,9 @@ dfMuts %<>% mutate(IGHV = ifelse(IGHV=="M",1,0))
 
 # for testing only take thos with more than 5 occurences in the sample cohort
 nOcc <- colSums(dfMuts[,colnames(dfMuts) != "PatientID"])
-dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>=5])
+# dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>=5])
+# only consider clinically most relevant:
+dfMuts4testing <- select(dfMuts, PatientID, TP53, IGHV) 
 ```
 
 # Patient overview including genetic background and molecular data

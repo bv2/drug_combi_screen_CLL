@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 
 #Introduction
@@ -352,7 +352,20 @@ https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 
 ```{r}
 library("synergyfinder")
-browseVignettes("synergyfinder")
+synergyfinder::mathews_screening_data
+data <- filter(df10x10, BaseDrugName == "Afatinib", PatientID == "P0069") %>%
+  select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
+         ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
+         Row = base_conc, Col = combi_conc) %>%
+  mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination
+  mutate(Row = sub("c", "", Row),
+         Col = sub("c", "", Col),
+         Response = 100 * Response) # need percentage
+data <- ReshapeData(data, data.type = "viability") # does not work with multiple replicates
+PlotDoseResponse(data)
+
+synergy.score <- CalculateSynergy(data,method = "ZIP", correction = TRUE, Emin = 0, Emax = 100)
+PlotSynergy(synergy.score, type = "all")
 ```
 
 Other packages: drc, SYNERGY

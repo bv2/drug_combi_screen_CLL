@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180903
+    today: 180905
 ---
 #Introduction
 
@@ -105,35 +105,37 @@ df4ana %>% filter(BDrugName %in% c("Afatinib","Spebrutinib"), CDrugAbrv %in% c("
 
 ## Patient by patient
 ```{r Combi_Ibru100_heatmap_pat_pat, fig.width=5.5, fig.height=5}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatPat", useAverage = FALSE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatPat", useAverage = FALSE)
 ```
 
 
 ## Patient x Base drugs
 ```{r Combi_Ibru100_heatmap_patient_drug, fig.width=14}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug", useAverage = FALSE)
+mat <- plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug",
+                   useAverage = FALSE, returnMat = TRUE)
 ```
 
 Average over concentrations
 ```{r Combi_Ibru100_heatmap_patient_drug_av}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug", useAverage = TRUE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)",
+            type = "PatDrug", useAverage = TRUE)
 ```
 
 
 # Viability heatmaps in combination with Idelalisib
 ## Patient by patient
 ```{r Combi_Idea_heatmap_pat_pat, fig.width=5.5, fig.height=5}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Idelalisib", type = "PatPat", useAverage = FALSE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatPat", useAverage = FALSE)
 ```
 
 ## Patient x Base drugs
 ```{r Combi_Idea_heatmap_patient_drug, fig.width=14}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = FALSE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = FALSE)
 ```
 
 Average over concentrations
 ```{r Combi_Idea_heatmap_patient_drug_av}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = TRUE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = TRUE)
 ```
 
 # Viability heatmaps drugs x drugs (Ibrutinib vs. Idelalisib)
@@ -200,8 +202,8 @@ FDR cutoff
 alpha <- 0.05
 ```
 
-All tested genetic features
-```{r volcanoe_combi_all, fig.height=15, fig.width=10}
+All tested genetic features (currently limited to IGHV and T53 as most relevant)
+```{r volcanoe_combi_facet, fig.height=7, fig.width=7}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
   filter(!is.na(pval))%>%
@@ -210,12 +212,24 @@ df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugI
 df_pvals_max %<>% mutate(sig = pval.adj<alpha,
                          col = mean.diff>0,
                          label = combi)
-ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
-  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, label, ""))) +
-  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
+df_calls <- df_pvals_max %>%
+  group_by(CDrugAbrv, mutation) %>%
+  summarize(calls = sum(pval.adj < alpha)) %>%
+  ungroup() %>%
+  filter(calls > 0)
+
+# show volanoes only for combintaiton drugs with at least one signifiacant hit and only one Ibrutinib conc (100 has more samples)
+df4plot <- filter(df_pvals_max, CDrugAbrv %in% df_calls$CDrugAbrv, mutation %in% df_calls$mutation, CDrugAbrv != "Ibrutinib (10nM)")
+ggplot(df4plot, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
+  geom_point(alpha=0.7) +
+  ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), label.size= 0, min.segment.length = 0, fill = NA) +
+  scale_color_manual(values= c("deeppink", "navy")) +
+  facet_wrap(CDrugAbrv~mutation, ncol=2)+ guides(col=FALSE) +
+  theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab("Mean viability difference") 
 ```
 
-Only IGHV and TP53
+Alterntive layout with TP53 and IGHV
 ```{r volcanoe_combi, fig.width=13.5, fig.height=7}
 #IGHV
 dfIGHV <- df_pvals_max %>% filter(mutation == "IGHV")
