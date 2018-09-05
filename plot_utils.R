@@ -43,7 +43,11 @@ plotComparsionCDrugs <- function(df, CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.4),
       geom_point() +
       xlab(paste("Combination effect with", CDrugAbrv.x, "\n (viability relative to DMSO control)")) +
       ylab(paste("Combination effect with", CDrugAbrv.y, "\n (viability relative to DMSO control)")) +    
-      annotate("text", x=range[1]+0.1, y=range[2]-0.1, label=paste("cor ==", (round(cor(df$effectBC.x,df$effectBC.y),2))), parse=T) +
+      annotate("text", x=range[1]+0.1, y=range[2]-0.1,
+               label=paste("cor ==", (round(cor(df$effectBC.x,df$effectBC.y),2))), parse=T) +
+      # annotate("text", x=range[2]-0.1, y=range[2]-0.1,
+      #          label=paste("R2 ==", round(1 - sum((df$effectBC.x - df$effectBC.y)^2)/sum(df$effectBC.x - mean(df$effectBC.x)^2),2),
+      #                      round( 1- sum((df$effectBC.x - df$effectBC.y)^2)/sum(df$effectBC.y - mean(df$effectBC.y)^2),2), parse=T)) +
       geom_abline(slope=1, intercept=0, lty="dashed") + guides(col=guide_legend(title="Base compound"))  +
       theme_bw(base_size=16)
 
@@ -55,6 +59,9 @@ plotComparsionCDrugs <- function(df, CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.4),
     facet_wrap(~BDrugName) +
     annotate("text", x=range[1]+0.3, y=range[2]-0.1,
              label=paste("cor ==", (round(summarize(group_by(df, BDrugName), cor=cor(effectBC.x, effectBC.y))$cor,2))), parse=T, size=3) +
+    # annotate("text", x=range[2]-0.3, y=range[2]-0.1,
+    #          label=paste("R2 ==", round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.x - mean(effectBC.x)^2))$r2,2),
+    #                      round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.y - mean(effectBC.y)^2))$r2,2), parse=T), size=3) +
     guides(col=guide_legend(ncol=1)) + geom_abline(slope=1, intercept=0)
   
 } else if( type=="boxplot_joint"){
@@ -274,7 +281,7 @@ ggvolc = function(df, title ="", Ycut, color=c("deeppink", "navy"), xlab = "") {
 #############################
 
 # plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
-plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE, sep_by_TP53=FALSE){
+plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE, sep_by_TP53=FALSE, annoSI=FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
     select(CDrugAbrv, BDrugName, BDrugConcId, starts_with("viab"), PatientID) %>%
@@ -287,12 +294,17 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   df4plot %<>% mutate(TP53 = ifelse(TP53 == 0, "TP53-wt", "TP53-mut"))
   
- 
+  # annotate by SI
+  dfanno <- dfsynSummaryPat %>% filter(CDrugAbrv == drC, BDrugName == drB) %>%
+    select(BDrugConcId, addModelSImed)
+  df4plot %<>% left_join(dfanno, by = "BDrugConcId")
+  
+  
   gg <- ggplot(data=df4plot, aes(x=BDrugConcId, y=viability, col =type, group=type)) +
     stat_summary(fun.data = "mean_se") +
     stat_summary(fun.y = "mean", geom="line") + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB)) +
-    guides(col = guide_legend(title="")) + ylim(c(0,th))
+    guides(col = guide_legend(title="")) + ylim(c(0,th)) 
   
   if(sep_by_IGHV & !sep_by_TP53){
     gg <- gg + facet_wrap(~IGHV)
@@ -302,11 +314,16 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
     gg <- gg + facet_wrap(TP53~IGHV)
   }
   
+  if(annoSI){
+    if(sep_by_IGHV | sep_by_IGHV) stop("SI annotation for separate IGHV or TP53 not implemented yet")
+    gg <- gg + geom_text(aes(x = BDrugConcId, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+  }
+  
   return(gg)
 }
 
 # plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
-plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th){
+plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI = FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
     select(CDrugAbrv, BDrugName, BDrugConcId, starts_with("viab"), PatientID) %>%
@@ -319,6 +336,10 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th){
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   
+  # annotate by SI
+  dfanno <- dfsynSummaryPat %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>%
+    select(BDrugConcId, addModelSImed, BDrugName)
+  df4plot %<>% left_join(dfanno, by = c("BDrugConcId", "BDrugName"))
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConcId, y=viability, col =type, group=type)) +
     stat_summary(fun.data = "mean_se") +
@@ -328,6 +349,9 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th){
     facet_wrap(~ BDrugName) +theme(legend.position = "top") +
     guides(col=guide_legend(nrow=2,byrow=TRUE, title = ""))
   
+  if(annoSI){
+    gg <- gg + geom_text(aes(x = BDrugConcId, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+  }
   
   return(gg)
 }

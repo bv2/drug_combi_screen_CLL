@@ -87,8 +87,23 @@ cowplot::plot_grid(gg1, gg2, align = "tb", axis = "hv", labels = c("A", "B"),
 
 ## Comparison Ibrutinib vs Idelalisib
 ### Overall
-```{r Ibru100vsIdel, fig.height=9, fig.width=7.5}
+```{r Ibru100vsIdel, fig.height=9, fig.width=12}
 plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_factBDrug") +guides(col=FALSE)
+```
+
+## Separately for M- and U-CLL
+```{r Ibru100vsIdel_MCLL}
+MCLLpat <- filter(dfMuts, IGHV == 1)$PatientID
+plotComparsionCDrugs(filter(df4ana, PatientID %in% MCLLpat),
+                     "Ibrutinib (100nM)", "Idelalisib",
+                     type="scatter_factBDrug") +guides(col=FALSE)
+```
+```{r Ibru100vsIdel_UCLL}
+UCLLpat <- filter(dfMuts, IGHV == 0)$PatientID
+
+plotComparsionCDrugs(filter(df4ana, PatientID %in% UCLLpat),
+                     "Ibrutinib (100nM)", "Idelalisib",
+                     type="scatter_factBDrug") +guides(col=FALSE)
 ```
 
 ### In combination with Afatinib or Spebrutinib

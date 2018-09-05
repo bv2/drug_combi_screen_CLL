@@ -127,6 +127,7 @@ nOcc <- colSums(dfMuts[,colnames(dfMuts) != "PatientID"])
 # dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>=5])
 # only consider clinically most relevant:
 dfMuts4testing <- select(dfMuts, PatientID, TP53, IGHV) 
+dfMuts4testing
 ```
 
 # Patient overview including genetic background and molecular data

@@ -236,7 +236,7 @@ alpha <- 0.05
 minOcc <- 3
 ```
 
-```{r volcanoe_SI}
+```{r test_SI}
 dfSI_gen_test <- dfsynSummaryConc %>%
   select(BDrugName, CDrugAbrv, addModelSImean, PatientID) %>%
   left_join(gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
@@ -250,8 +250,10 @@ df_pvals_SI_vs_muts <- group_by(dfSI_gen_test, CDrugAbrv, BDrugName, mutation, c
   filter(!is.na(pval)) %>% ungroup()
 df_pvals_SI_vs_muts$pval.adj <-  p.adjust(df_pvals_SI_vs_muts$pval, method="BH")
 hist(df_pvals_SI_vs_muts$pval)
-arrange(df_pvals_SI_vs_muts, pval.adj)
 filter(df_pvals_SI_vs_muts, pval.adj < alpha)
+```
+
+```{r volcanoe_SI}
 ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.diff > 0)) +
   geom_point(alpha=0.7) +
   ggrepel::geom_label_repel(aes(label=ifelse(pval.adj < alpha, combi, "")), label.size= 0, min.segment.length = 0, fill = NA) +
@@ -265,7 +267,7 @@ ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
 ```{r Ibrutinib (100nM)_Navitoclax_Curves, fig.width=9}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax")
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", annoSI = TRUE)
 ```
 
 ## Boxplots CI
@@ -298,7 +300,7 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Navitoclax")
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
 ```{r Ibrutinib (100nM)_Afatinib_Curves, fig.width = 12}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", sep_by_IGHV = TRUE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", annoSI = TRUE)
 ```
 
 ## Boxplots CI
@@ -331,7 +333,7 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Afatinib")
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
 ```{r Ibrutinib (100nM)_Venetoclax_Curves, fig.width=12}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", sep_by_IGHV = TRUE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", annoSI = TRUE)
 ```
 
 ## Boxplots CI
@@ -362,7 +364,7 @@ plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Venetoclax")
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
 ```{r Ibrutinib (100nM)_Fludarabine_Curves, fig.width=12, fig.height=12}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", sep_by_IGHV = TRUE, sep_by_TP53 = TRUE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Fludarabine", annoSI = TRUE)
 ```
 
 ## Boxplots CI
@@ -414,7 +416,7 @@ ggplot(df4plot, aes(x=status, y=addModelSImean)) +
 # Ibrutinib + MK-2206
 ## Response curves
 ```{r Ibrutinib (100nM)_MK-2206_Curves, fig.width=12}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", sep_by_IGHV = FALSE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", annoSI = TRUE)
 ```
 ## Boxplots CI
 ```{r Ibrutinib (100nM)_MK-2206_CIboxplots_Bliss, fig.width=4}
@@ -429,7 +431,7 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "MK-2206", CI_type = "
 # Ibrutinib + Everolimus
 ## Response curves
 ```{r Ibrutinib (100nM)_Everolimus_Curves, fig.width=12}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", sep_by_IGHV = FALSE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", annoSI = TRUE)
 ```
 ## Boxplots CI
 ```{r Ibrutinib (100nM)_Everolimus_CIboxplots_Bliss, fig.width=4}
@@ -443,7 +445,7 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Everolimus", CI_type 
 # Ibrutinib + Nutlin-3
 ## Response curves
 ```{r Ibrutinib (100nM)_Nutlin-3_Curves, fig.width=9}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Nutlin-3", sep_by_IGHV = FALSE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Nutlin-3", annoSI = TRUE)
 ```
 ## Boxplots CI
 ```{r Ibrutinib (100nM)_Nutlin-3_CIboxplots_Bliss, fig.width=4}
@@ -486,7 +488,7 @@ dfsynSummaryConcPat %>% filter(CDrugAbrv %in% BCRi) %>%
 
 ## Response curves
 ```{r BCRi_ResponseCurves, fig.height= 9}
-plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406", "AZD7762", "Dasatinib", "PF 477736", "Idelalisib"))
+plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406", "AZD7762", "Dasatinib", "PF 477736", "Idelalisib"), annoSI = TRUE)
 ```
 
 ##Scatterplot
@@ -529,6 +531,12 @@ plotScattterVsCombi(dfsyn,  drC = "Afatinib", drB = "Ibrutinib")
 ### Waterfall CI
 ```{r Afatinib_Ibrutinib_CIwaterfall, fig.width=10, fig.height=3}
 plotWaterfallCI(dfsynSummaryConc, drC = "Afatinib", drB = "Ibrutinib", CI_type = "SI")
+```
+
+
+# Data export
+```{r}
+save(dfsyn, dfsynSummaryConc, dfsynSummaryConcPat, dfsynSummaryPat, file=paste0("out/MarinaCombiSyns_",today,".RData"))
 ```
 
 
