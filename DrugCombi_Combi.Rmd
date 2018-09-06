@@ -71,7 +71,8 @@ df_nsamples %>%
   mutate(CDrugAbrv = factor(CDrugAbrv, levels = df_nsamples$CDrugAbrv[order(df_nsamples$nSamples, decreasing = T)])) %>%
   ggplot(aes(x=CDrugAbrv, y=nSamples)) +
   geom_bar(stat="identity", fill="navy") +
-  theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1),
+  theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1, size = 12),
+        text = element_text(size=12),
         panel.background = element_blank(),
         axis.ticks.x = element_blank()) +
   xlab("Combination Drug") +ylab("Number of samples")
@@ -125,15 +126,19 @@ plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutini
 
 
 ## Patient x Base drugs
-```{r Combi_Ibru100_heatmap_patient_drug, fig.width=14}
+```{r Combi_Ibru100_heatmap_patient_drug, fig.width=10}
+# use eucliden diatnace for patient (absolute value of drug response/sensitivty o interest)
+# use correlation distance for drugs (absolute valued dep on conc, interesting is whether they afffect similar patient to similar extent)
 mat <- plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug",
-                   useAverage = FALSE, returnMat = TRUE)
+                   useAverage = FALSE, returnMat = TRUE, dist2usecols = "correlation")
 ```
 
 Average over concentrations
 ```{r Combi_Ibru100_heatmap_patient_drug_av}
+# use eucliden diatnace for patient (absolute value of drug response/sensitivty o interest)
+# use correlation distance for drugs (absolute valued dep on conc, interesting is whether they afffect similar patient to similar extent)
 plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)",
-            type = "PatDrug", useAverage = TRUE)
+            type = "PatDrug", useAverage = TRUE, dist2usecols = "correlation")
 ```
 
 
@@ -144,13 +149,15 @@ plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalis
 ```
 
 ## Patient x Base drugs
-```{r Combi_Idea_heatmap_patient_drug, fig.width=14}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = FALSE)
+```{r Combi_Idea_heatmap_patient_drug, fig.width=10}
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib",
+            type = "PatDrug", useAverage = FALSE, dist2usecols = "correlation")
 ```
 
 Average over concentrations
 ```{r Combi_Idea_heatmap_patient_drug_av}
-plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatDrug", useAverage = TRUE)
+plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalisib", type = "PatDrug",
+            useAverage = TRUE, dist2usecols = "correlation")
 ```
 
 # Viability heatmaps drugs x drugs (Ibrutinib vs. Idelalisib)
@@ -237,7 +244,7 @@ df_calls <- df_pvals_max %>%
 df4plot <- filter(df_pvals_max, CDrugAbrv %in% df_calls$CDrugAbrv, mutation %in% df_calls$mutation, CDrugAbrv != "Ibrutinib (10nM)")
 ggplot(df4plot, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
   geom_point(alpha=0.7) +
-  ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), label.size= 0, min.segment.length = 0, fill = NA) +
+  ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), label.size= NA, min.segment.length = 0, fill = NA) +
   scale_color_manual(values= c("deeppink", "navy")) +
   facet_wrap(CDrugAbrv~mutation, ncol=2)+ guides(col=FALSE) +
   theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
@@ -295,27 +302,24 @@ dfSummaryCalls %>% gather(key="legend", value = "n", -1) %>%
 
 ## Boxplots Ibrutinib
 Draw boxplots for TP53 and IGHV including all drug combinations that have significant concentrations at an FDR of 1%.
-```{r boxplot_combiIbru100_TP53, fig.width=6, fig.height=3.5}
+```{r boxplot_combiIbru100_TP53, fig.width=8, fig.height=3.5}
 sel_combis <- c("Ibrutinib (100nM)+Nutlin-3","Ibrutinib (100nM)+Fludarabine")
 stopifnot(sel_combis %in% df_signTP53$combi)
-
-df_combis_vs_muts %>% filter(mutation == "TP53", combi %in% sel_combis) %>% 
-  mutate(status = ifelse(status ==0, "wt","mut")) %>%
-  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
-  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability") +theme_bw()
-
+plotCombiBoxplots(df_combis_vs_muts, sel_combis, gene = "TP53")
+```
+```{r curves_combiIbru100_TP53, fig.width=8, fig.height=3.5}
+plotCombiResponseCurves(df_combis_vs_muts, sel_combis, gene = "TP53")
 ```
 
 ```{r boxplot_combiIbru100_IGHV, fig.width=9, fig.height=3.5}
 sel_combis <- c("Ibrutinib (100nM)+AZD7762","Ibrutinib (100nM)+PF 477736", "Ibrutinib (100nM)+Dasatinib")
 stopifnot(sel_combis %in% df_signIGHV$combi)
 
-df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>% 
-  mutate(status = ifelse(status ==0, "wt","mut")) %>%
-  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
-  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability") +theme_bw()
+plotCombiBoxplots(df_combis_vs_muts, sel_combis, gene = "IGHV")
+```
+
+```{r curves_combiIbru100_IGHV, fig.width=10, fig.height=3.5}
+plotCombiResponseCurves(df_combis_vs_muts, sel_combis, gene = "IGHV")
 ```
 
 ## Boxplots Idealisib
@@ -323,14 +327,15 @@ df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>%
 sel_combis <- c("Idelalisib+AZD7762","Idelalisib+PF 477736", "Idelalisib+Dasatinib")
 stopifnot(sel_combis %in% df_signIGHV$combi)
 
-df_combis_vs_muts %>% filter(mutation == "IGHV", combi %in% sel_combis) %>% 
-  mutate(status = ifelse(status ==0, "wt","mut")) %>%
-  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi) +
-  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV")) + xlab("Concentration") +ylab("viability") +theme_bw()
+plotCombiBoxplots(df_combis_vs_muts, sel_combis, gene = "IGHV")
 ```
 
+```{r curves_combiIdea_IGHV, fig.width=9, fig.height=3.5}
+sel_combis <- c("Idelalisib+AZD7762","Idelalisib+PF 477736", "Idelalisib+Dasatinib")
+stopifnot(sel_combis %in% df_signIGHV$combi)
 
+plotCombiResponseCurves(df_combis_vs_muts, sel_combis, gene = "IGHV")
+```
 #SessionInfo
 ```{r}
 sessionInfo()

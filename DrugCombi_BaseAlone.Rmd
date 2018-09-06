@@ -35,6 +35,7 @@ library(pheatmap)
 library(magrittr)
 library(lattice)
 library(tidyverse)
+source("plot_utils.R")
 options(stringsAsFactors = FALSE)
 ```
 
@@ -103,15 +104,20 @@ alpha <- 0.05
 ```
 
 ## Volcanoe plot
-```{r volcanoe_base, fig.height=7, fig.width=7}
+```{r volcanoe_base, fig.height=4, fig.width=8}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
 df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
 df_pvals_max %<>% mutate(sig = pval.adj<alpha, col = mean.diff>0)
 
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
-  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, ""))) +
-  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE)
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")),  label.size= NA, fill = NA, size=4.5) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE) +
+  theme_bw(base_size = 14) + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab ("Mean viability difference")+
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=14))
+
 ```
 
 ## List of significant pharmacogenomic interactions
@@ -128,25 +134,24 @@ df_signIGHV <- df_sign %>% filter(mutation == "IGHV")
 paste(unique(df_signIGHV$BDrugName), collapse = ", ")
 ```
 
-## Boxplots
+## Boxplots and Curves
 Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at an FDR of 1%.
-```{r boxplot_base_TP53, fig.width=9, fig.height=4}
-df_effectB_vs_muts %>% filter(mutation == "TP53", BDrugName %in% df_signTP53$BDrugName) %>% 
-  mutate(status = ifelse(status ==0, "wt","mut")) %>%
-  ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
-  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="TP53")) + xlab("Concentration") +ylab("viability") +theme_bw()
-
+```{r boxplot_base_TP53, fig.width=8, fig.height=3}
+plotBaseBoxplots(df_effectB_vs_muts, df_signTP53$BDrugName, gene = "TP53")
+```
+```{r curves_base_TP53, fig.width=7, fig.height=2.8}
+plotBaseResponseCurves(df_effectB_vs_muts, df_signTP53$BDrugName, gene = "TP53")
 ```
 
-```{r, boxplot_base_IGHV, fig.width=9, fig.height=9}
-df_effectB_vs_muts %>% filter(mutation == "IGHV", BDrugName %in% df_signIGHV$BDrugName) %>% 
-    mutate(status = ifelse(status ==0, "U-CLL","M-CLL")) %>%
-  ggplot(aes(x=BDrugConcId, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName) +
-  ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="IGHV"))+ xlab("Concentration") +ylab("viability")+theme_bw()
+```{r, boxplot_base_IGHV, fig.width=8, fig.height=5}
+selDrugs <- c("Ibrutinib", "R406", "Spebrutinib", "AZD7762", "PF 477736")
+stopifnot(all(selDrugs %in% df_signIGHV$BDrugName))
+plotBaseBoxplots(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
+```{r curves_base_IGHV, fig.width=7, fig.height =5}
+plotBaseResponseCurves(df_effectB_vs_muts, selDrugs, gene = "IGHV")
+```
 
 ## Heatmap on base viability values
 ```{r}
@@ -175,7 +180,8 @@ effectB_mat_av <- df_effectB %>%
   spread(key=BDrugName, value=effectB) %>% 
   column_to_rownames("PatientID") %>%
   as.matrix()
-pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10, treeheight_col = 10)
+pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10,
+         treeheight_col = 10, fontsize = 18 )
 ```
 
 ##PatientxDrugs
@@ -225,7 +231,8 @@ names(anno_colors) <- colnames(dfanno)
          clustering_distance_cols = "euclidean",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
-         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)
+         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,
+         annotation_legend = FALSE, fontsize = 12)
 ```
 
 

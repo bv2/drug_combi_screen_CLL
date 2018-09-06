@@ -22,6 +22,89 @@ myHeatmap <- function(test, minV=NULL, maxV = NULL, paletteLength=100,
   pheatmap(test, color=myColor, breaks=myBreaks, ...)
 }
 
+
+plotBaseResponseCurves <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3){
+  df4plot <- dfBmuts %>% filter(mutation == gene, BDrugName %in% drugs2plot) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+  
+  if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
+  else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
+    
+  gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectB, group=status)) +
+    stat_summary(fun.data = "mean_se", aes(col=factor(status)), geom="line") + facet_wrap(~BDrugName, ncol=3, scales = "free_x") +
+    stat_summary(fun.data = "mean_se",aes(col=factor(status)), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
+    ggpubr::stat_compare_means(method = "t.test", aes(group=status, x=BDrugConc, label =  ..p.signif..), hide.ns = TRUE) +
+    guides(col = guide_legend(title=gene))+ xlab("Concentration (µM)") +ylab("viability")+theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1))
+  # if(length(unique(drugs2plot)) <4) gg <- gg + theme(legend.position = "top")
+  if(gene == "IGHV") gg  <- gg +scale_color_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+  else if(gene == "TP53") gg  <- gg +scale_color_manual(values= c("wt" = "black", "mut" = "orange"))
+  
+  gg
+}
+
+plotBaseBoxplots <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3){
+  df4plot <- dfBmuts %>% filter(mutation == gene, BDrugName %in% drugs2plot) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+  
+    if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
+    else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
+  
+    gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectB)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~BDrugName, ncol=3 , scales = "free_x") +
+    ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+    guides(fill = guide_legend(title=gene)) + xlab("Concentration (µM)") +ylab("viability") +theme_bw(base_size = 15) +
+      theme(strip.background = element_blank(),
+            axis.text.x = element_text(angle=90, vjust=1, hjust =1))
+    if(gene == "IGHV") gg  <- gg +scale_fill_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+    else if(gene == "TP53") gg  <- gg +scale_fill_manual(values= c("wt" = "gray", "mut" = "orange"))
+    
+    gg
+}
+
+plotCombiBoxplots <- function(dfBCmuts, drugs2plot, gene = "TP53", round2=3){
+  df4plot <- dfBCmuts %>% filter(mutation == gene, combi %in% drugs2plot) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+  
+  if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
+  else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
+  
+  gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectBC)) + geom_boxplot(aes(fill=factor(status))) + facet_wrap(~combi, ncol=3 , scales = "free_x") +
+    ggpubr::stat_compare_means(method = "t.test", aes(group=status, label =  ..p.signif..), hide.ns = TRUE) +
+    guides(fill = guide_legend(title=gene)) + xlab("Concentration (µM)") +ylab("viability") +theme_bw(base_size = 15) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1))
+  if(gene == "IGHV") gg  <- gg +scale_fill_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+  else if(gene == "TP53") gg  <- gg +scale_fill_manual(values= c("wt" = "gray", "mut" = "orange"))
+  
+  gg
+}
+
+plotCombiResponseCurves <- function(dfBCmuts, drugs2plot, gene = "TP53", round2=3){
+  df4plot <- dfBCmuts %>% filter(mutation == gene, combi %in% drugs2plot) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+  
+  if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
+  else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
+  
+  gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectBC, group=status)) +
+    stat_summary(fun.data = "mean_se", aes(col=factor(status)), geom="line") + facet_wrap(~combi, ncol=3, scales = "free_x") +
+    stat_summary(fun.data = "mean_se",aes(col=factor(status)), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
+    ggpubr::stat_compare_means(method = "t.test", aes(group=status, x=BDrugConc, label =  ..p.signif..), hide.ns = TRUE) +
+    guides(col = guide_legend(title=gene))+ xlab("Concentration (µM)") +ylab("viability")+theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1))
+  # if(length(unique(drugs2plot)) <4) gg <- gg + theme(legend.position = "top")
+  if(gene == "IGHV") gg  <- gg +scale_color_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+  else if(gene == "TP53") gg  <- gg +scale_color_manual(values= c("wt" = "black", "mut" = "orange"))
+  
+  gg
+}
+
 ##############################
 # Drug Combination Viability Comparisons
 #############################
@@ -96,7 +179,7 @@ return(gg)
 # nOcc - number of occurences for genetic aberrations to be annotated 
 plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDrug", "DrugDrug"), useAverage=FALSE,
                         conc4average = paste0("c",1:5), nOcc = 10, DrugDrugbyIGHV=FALSE, returnMat = FALSE,
-                        dist2use = "euclidean"){
+                        dist2usecols = "euclidean", dist2userows = "euclidean"){
   
   dfBPlusC <- filter(df4ana, CDrugAbrv == CDrugAbrv4plot)
   dfBPlusC %<>% mutate(BDrugNameConc = paste(BDrugName, BDrugConcId, sep="_"))
@@ -152,27 +235,28 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
     if(!useAverage){
       # outlying values cut off at 1.4
       effectBPlusC_mat[is.na(effectBPlusC_mat)] <- 1.4
-    }
-      pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows=dist2use,
-               clustering_distance_cols = dist2use,
+      fsz <- 5
+    } else fsz <- 12
+      pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows=dist2userows,
+               clustering_distance_cols = dist2usecols,
                color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
                breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
                treeheight_row = 15, treeheight_col = 15, annotation_row = dfanno, annotation_colors =anno_colors,
-               annotation_legend = FALSE, fontsize_col=6)
+               annotation_legend = FALSE, fontsize_col=fsz)
 
     
   } else if(type == "DrugDrug"){
       if(DrugDrugbyIGHV) {
         mat <- effectBPlusC_mat[patsMCLL, ]
         corDrug <- cor(mat, use="complete.obs")
-        hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
-               clustering_distance_cols = dist2use,
+        hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
+               clustering_distance_cols = dist2usecols,
                color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
                treeheight_row = 15, treeheight_col = 15, main = "M-CLL",breaks=seq(0,1,0.01))
         mat <- effectBPlusC_mat[patsUCLL, ]
         corDrug <- cor(mat, use="complete.obs")
-        hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
-                 clustering_distance_cols = dist2use,
+        hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
+                 clustering_distance_cols = dist2usecols,
                  color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
                  treeheight_row = 15, treeheight_col = 15, main = "U-CLL",
                  breaks=seq(0,1,0.01))
@@ -180,10 +264,10 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
         
       } else {
         corDrug <- cor(effectBPlusC_mat, use="complete.obs")
-        pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2use,
-                 clustering_distance_cols = dist2use,
+        pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
+                 clustering_distance_cols = dist2usecols,
                  color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
-                 treeheight_row = 15, treeheight_col = 15)
+                 treeheight_row = 15, treeheight_col = 15, fontsize = 12)
       }
       
   } 
@@ -283,8 +367,7 @@ ggvolc = function(df, title ="", Ycut, color=c("deeppink", "navy"), xlab = "") {
 # plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
 plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE, sep_by_TP53=FALSE, annoSI=FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) %>% 
-    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
-    select(CDrugAbrv, BDrugName, BDrugConcId, starts_with("viab"), PatientID) %>%
+    select(CDrugAbrv, BDrugName, BDrugConcId,BDrugConc, starts_with("viab"), PatientID) %>%
     gather(key="type", value = "viability", starts_with("viab")) %>%
     mutate(type = ifelse(type == "viabB", paste(drB, "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
@@ -299,12 +382,14 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
     select(BDrugConcId, addModelSImed)
   df4plot %<>% left_join(dfanno, by = "BDrugConcId")
   
+  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
-  gg <- ggplot(data=df4plot, aes(x=BDrugConcId, y=viability, col =type, group=type)) +
+  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
     stat_summary(fun.data = "mean_se") +
     stat_summary(fun.y = "mean", geom="line") + 
-    theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB)) +
-    guides(col = guide_legend(title="")) + ylim(c(0,th)) 
+    theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
+    theme(legend.position = "top") + 
+    guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th)) 
   
   if(sep_by_IGHV & !sep_by_TP53){
     gg <- gg + facet_wrap(~IGHV)
@@ -316,7 +401,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
   
   if(annoSI){
     if(sep_by_IGHV | sep_by_IGHV) stop("SI annotation for separate IGHV or TP53 not implemented yet")
-    gg <- gg + geom_text(aes(x = BDrugConcId, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+    gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
   }
   
   return(gg)
@@ -326,7 +411,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
 plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI = FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
-    select(CDrugAbrv, BDrugName, BDrugConcId, starts_with("viab"), PatientID) %>%
+    select(CDrugAbrv, BDrugName, BDrugConcId,BDrugConc, starts_with("viab"), PatientID) %>%
     mutate(BDrugName = factor(BDrugName, levels =drsB)) %>% #keep order as specified
     gather(key="type", value = "viability", starts_with("viab")) %>%
     mutate(type = ifelse(type == "viabB", paste("Base compound", "(A)"),
@@ -341,16 +426,18 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
     select(BDrugConcId, addModelSImed, BDrugName)
   df4plot %<>% left_join(dfanno, by = c("BDrugConcId", "BDrugName"))
   
-  gg <- ggplot(data=df4plot, aes(x=BDrugConcId, y=viability, col =type, group=type)) +
+  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
+  
+  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
     stat_summary(fun.data = "mean_se") +
     stat_summary(fun.y = "mean", geom="line") + 
-    theme_bw(base_size = 20) + xlab(paste0("Concentration")) +
+    theme_bw(base_size = 20) + xlab(paste0("Concentration (nM)")) +
     guides(col = guide_legend(title="")) + ylim(c(0,th)) +
-    facet_wrap(~ BDrugName) +theme(legend.position = "top") +
+    facet_wrap(~ BDrugName, ncol = 4) +theme(legend.position = "top") +
     guides(col=guide_legend(nrow=2,byrow=TRUE, title = ""))
   
   if(annoSI){
-    gg <- gg + geom_text(aes(x = BDrugConcId, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+    gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
   }
   
   return(gg)
@@ -368,12 +455,14 @@ plotBoxplotCI <- function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
   } else {
     df4plot$CI <- df4plot$addModelSI
   }
-
-  ggplot(df4plot, aes(x=BDrugConcId, y=CI)) +
+  
+    df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
+  
+    ggplot(df4plot, aes(x=BDrugConc, y=CI)) +
     ggbeeswarm::geom_beeswarm(col = "gray", alpha =0.7) + 
     geom_boxplot(outlier.shape = NA, alpha=0.2, width = 0.3) +
-    geom_hline(yintercept = ifelse(CI_type =="SI",0,1), lty = "dashed") +
-    theme_bw()  + xlab(paste0("Concentration of ", drB)) + ylab(paste0("Combination index (", CI_type, ")"))
+    geom_hline(yintercept = ifelse(CI_type =="Bliss",1,0), lty = "dashed") +
+    theme_bw(base_size = 15)  + xlab(paste0("Concentration of ", drB, " (nM)")) + ylab(paste0("Combination index (", CI_type, ")"))
 }
 
 # plot bar plot of individual combination indices for each sample

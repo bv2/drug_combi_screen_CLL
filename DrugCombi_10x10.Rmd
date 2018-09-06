@@ -53,6 +53,7 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figs", today, "/
 
 
 ```{r}
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 datadir10x10 <- file.path(datadir,"10x10")
 ```
 
@@ -367,7 +368,7 @@ summary(rs)
 # SynergyFinder
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 
-```{r Loewe_surface, fig.width=7}
+```{r Loewe_surface, fig.width=10}
 library("synergyfinder")
 CItype <- "Loewe"
 
@@ -389,17 +390,19 @@ dfpat <- ReshapeData(dfpat, data.type = "viability") # does not work with multip
 
 #re-order by concentrations
 dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
-print(PlotDoseResponse(dfpat))
+# print(PlotDoseResponse(dfpat))
 
 synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE, Emin = 0, Emax = 100)
 df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
   filter(concB !=0 & concC!=0)
-gg <- ggplot(df_score, aes(x = factor(concB), y=factor(concC), fill = score)) +
+gg <- ggplot(df_score, aes(x = factor(round(concB*1000,2)), y=factor(round(concC*1000,2)), fill = score)) +
   geom_tile() +
-  ylab("Ibrutinib (μM)") + xlab(paste(dr, "(μM)")) +
+  ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
   ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
-  scale_fill_gradient2(low= "green", high="red", mid="white", midpoint = 0) +
-  theme_bw(base_size = 16)
+  scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+  theme_bw(base_size = 16) + coord_fixed() +
+  theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
+        plot.title = element_text(colour =  patcol[pat]))
 print(gg)
 # myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
 }
