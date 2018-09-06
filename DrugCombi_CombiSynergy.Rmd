@@ -42,7 +42,7 @@ source("plot_utils.R")
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 today <- params$today
-figdir <- paste0("figuresCombiSynergy", today, "/")
+figdir = paste0("figs", today, "/figuresCombiSynergy/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```

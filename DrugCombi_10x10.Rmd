@@ -46,7 +46,9 @@ source("plot_utils.R")
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir = "out"
 today <- params$today
-knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figures10x10", today, "/"))
+figdir = paste0("figs", today, "/figures10x10/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figs", today, "/figures10x10/"))
 ```
 
 
@@ -286,9 +288,10 @@ plotTiles10x10(df10x10, "Venetoclax", "P0445")
 
 ```{r}
 library(BIGL)
+evalIsobols <- FALSE
 ```
 
-```{r isobologram_Venetoclax}
+```{r isobologram_Venetoclax, eval = evalIsobols}
 data <- filter(df10x10, BaseDrugName == "Venetoclax") %>%
   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
 marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
@@ -306,7 +309,7 @@ isobologram(rs)
 summary(rs)
 ```
 
-```{r isobologram_Navitoclax}
+```{r isobologram_Navitoclax, eval = evalIsobols}
 data <- filter(df10x10, BaseDrugName == "Navitoclax") %>%
   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
 marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
@@ -324,7 +327,7 @@ isobologram(rs)
 summary(rs)
 ```
 
-```{r isobologram_Afatinib}
+```{r isobologram_Afatinib, eval = evalIsobols}
 data <- filter(df10x10, BaseDrugName == "Afatinib") %>%
   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
 marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
@@ -342,7 +345,7 @@ isobologram(rs)
 summary(rs)
 ```
 
-```{r isobologram_Idelalisib}
+```{r isobologram_Idelalisib, eval = evalIsobols}
 data <- filter(df10x10, BaseDrugName == "Idelalisib") %>%
   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
 marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
@@ -364,12 +367,17 @@ summary(rs)
 # SynergyFinder
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 
-```{r Loewe_surface}
+```{r Loewe_surface, fig.width=7}
 library("synergyfinder")
-for(dr in unique(df10x10$BaseDrug)){
-  df <- filter(df10x10, BaseDrugName == dr)
-  for(pat in unique(df$PatientID)){
-      df <- filter(df10x10, PatientID == pat) %>%
+CItype <- "Loewe"
+
+for(dr in unique(df10x10$BaseDrugName)){
+  if(dr!="DM"){
+    print(dr)
+  data <- filter(df10x10, BaseDrugName == dr, CombiDrug == "Ibrutinib")
+  for(pat in unique(data$PatientID)){
+    print(pat)
+      dfpat <- filter(data, PatientID == pat) %>%
   select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
          ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
          Row = base_conc, Col = combi_conc) %>%
@@ -377,13 +385,24 @@ for(dr in unique(df10x10$BaseDrug)){
   mutate(Row = sub("c", "", Row),
          Col = sub("c", "", Col),
          Response = 100 * Response) # need percentage
-data <- ReshapeData(data, data.type = "viability") # does not work with multiple replicates
-#re-order by concentrations
-data$dose.response.mats[[1]] <- data$dose.response.mats[[1]][order(rownames(data$dose.response.mats[[1]])), order(colnames(data$dose.response.mats[[1]]))]
-PlotDoseResponse(data)
+dfpat <- ReshapeData(dfpat, data.type = "viability") # does not work with multiple replicates
 
-synergy.score <- CalculateSynergy(data,method = "Loewe", correction = TRUE, Emin = 0, Emax = 100)
-PlotSynergy(synergy.score, type = "2D")
+#re-order by concentrations
+dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
+print(PlotDoseResponse(dfpat))
+
+synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE, Emin = 0, Emax = 100)
+df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
+  filter(concB !=0 & concC!=0)
+gg <- ggplot(df_score, aes(x = factor(concB), y=factor(concC), fill = score)) +
+  geom_tile() +
+  ylab("Ibrutinib (μM)") + xlab(paste(dr, "(μM)")) +
+  ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
+  scale_fill_gradient2(low= "green", high="red", mid="white", midpoint = 0) +
+  theme_bw(base_size = 16)
+print(gg)
+# myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
+}
   }
   }
 ```
