@@ -534,12 +534,12 @@ dfsynSummaryConcPat %>% filter(CDrugAbrv %in% BCRi) %>%
   theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1,size=12),
         axis.ticks.x = element_blank(),
         panel.background = element_rect(fill = "white"),
-        strip.background = element_blank())
+        strip.background = element_blank()) +
   ylab("Synergy Index (SI)") + xlab("Base compound") 
 ```
 
 ## Response curves
-```{r BCRi_ResponseCurves, fig.height= 9}
+```{r BCRi_ResponseCurves, fig.height= 8, fig.width=12}
 plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406", "AZD7762", "Dasatinib", "PF 477736", "Idelalisib"), annoSI = TRUE)
 ```
 
