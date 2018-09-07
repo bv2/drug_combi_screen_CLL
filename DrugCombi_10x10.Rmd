@@ -121,8 +121,17 @@ import10x10Data <- function(filename, SetUp){
   #info from filename
   NameComp <- strsplit(filename, "_")[[1]]
   patID <- NameComp[grep("P0",NameComp)] 
+  
+  # in files named PatientID.... first named drug is second in screen
+  # in files named 10x10 Validierung..... first named drug is second in screen.
+  if(grepl("^10x10 Validierung", filename)){
   TestDrugA <- NameComp[3] 
   TestDrugB <- sub(".xlsx","", NameComp[4])
+  } else {
+      TestDrugB <- NameComp[3] 
+      TestDrugA <- sub(".xlsx","", NameComp[4])
+  }
+    
   
   #table from excel file (ignore meta data about screen)
   tableIdx <- which(data=="<>", arr.ind = T)
@@ -213,8 +222,7 @@ df10x10 %<>% mutate(BaseDrugName = ifelse(BaseDrug == "CAL101", "Idelalisib",
 df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
   summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
 ```
-Correct concentrations according (wrong in tables):
-2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0
+Check whether the concentratino in the xls files are plausible: They are different in each experiment, consistent would be 2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0.
 ```{r}
 conc_BCL2 <- sapply(0:9, function(i) 2 * 0.5^i)
 conc_BCL2[10] <- 0
@@ -222,9 +230,21 @@ names(conc_BCL2) <- paste0("c", 1:10)
 conc_other <- sapply(0:9, function(i) 20 * 0.5^i)
 conc_other[10] <- 0
 names(conc_other) <- paste0("c", 1:10)
-df10x10 %<>% mutate(concBvalue = ifelse(BaseDrugName %in% c("Afatinib", "Idelalisib"), conc_other[base_conc],
+df10x10corr <- mutate(df10x10, concBvalue = ifelse(BaseDrugName %in% c("Afatinib", "Idelalisib"), conc_other[base_conc],
                                  ifelse(BaseDrugName %in% c("Navitoclax", "Venetoclax"),  conc_BCL2[base_conc], NA)))
-df10x10 %<>% mutate(concCvalue = ifelse(CombiDrug == "Ibrutinib", conc_other[combi_conc], NA))
+df10x10corr <-mutate(df10x10corr, concCvalue = ifelse(CombiDrug == "Ibrutinib", conc_other[combi_conc], NA))
+```
+Check that concentration values for B are correct (different per patient) in the spreadsheeds. YES
+```{r, fig.width=10}
+gg1 <- filter(df10x10, concCvalue == 0, CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
+  ggplot(aes(x= concBvalue, y=normalizedValue, col= PatientID)) +
+  geom_line() + facet_wrap(~BaseDrugName, scales = "free_x")+ggtitle("concentrations as spreadsheets")
+
+gg2 <- filter(df10x10corr, concCvalue == 0, CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
+  ggplot(aes(x= concBvalue, y=normalizedValue, col= PatientID)) +
+  geom_line() + facet_wrap(~BaseDrugName, scales = "free_x") +ggtitle("concentrations as in manuscript")
+
+cowplot::plot_grid(gg1,gg2, ncol=2)
 ```
 
 
