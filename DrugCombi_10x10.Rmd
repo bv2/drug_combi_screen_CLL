@@ -245,6 +245,10 @@ gg2 <- filter(df10x10corr, concCvalue == 0, CombiDrug == "Ibrutinib", BaseDrugNa
   geom_line() + facet_wrap(~BaseDrugName, scales = "free_x") +ggtitle("concentrations as in manuscript")
 
 cowplot::plot_grid(gg1,gg2, ncol=2)
+
+filter(df10x10,  CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
+  ggplot(aes(x= concBvalue, y=normalizedValue, col= PatientID)) +
+  geom_line() + facet_grid(concCvalue ~BaseDrugName, scales = "free_x")
 ```
 
 
@@ -388,7 +392,7 @@ summary(rs)
 # SynergyFinder
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 
-```{r Loewe_surface, fig.width=10}
+```{r Loewe_surface, fig.width=10, warning= FALSE}
 library("synergyfinder")
 CItype <- "Loewe"
 
@@ -424,14 +428,65 @@ gg <- ggplot(df_score, aes(x = factor(round(concB*1000,2)), y=factor(round(concC
   theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
         plot.title = element_text(colour =  patcol[pat]))
 print(gg)
+print(round(mean(df_score$score),3))
 # myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
 }
   }
   }
 ```
 
+Compare to other scores
+```{r, fig.height=5}
+Bdrs <- unique(df10x10$BaseDrugName)
+Bdrs  <- Bdrs[Bdrs != "DM"]
+df_scores <- lapply(c("Loewe", "ZIP", "HSA", "Bliss"), function(CI_type) {
+ lapply(Bdrs, function(dr){
+    data <- filter(df10x10, BaseDrugName == dr, CombiDrug == "Ibrutinib")
+   lapply(unique(data$PatientID), function(pat){
+     dfpat <- filter(data, PatientID == pat) %>%
+  select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
+         ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
+         Row = base_conc, Col = combi_conc) %>%
+  mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination
+  mutate(Row = sub("c", "", Row),
+         Col = sub("c", "", Col),
+         Response = 100 * Response) # need percentage
+dfpat <- ReshapeData(dfpat, data.type = "viability")
+dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
+synergy.score <- CalculateSynergy(dfpat,method = CI_type, correction = TRUE, Emin = 0, Emax = 100, nan.handle = "LL4")
+data.frame(pat=pat, drB =dr, score = mean(synergy.score$scores[[1]]), method = CI_type)
+   }) %>% bind_rows()
+ }) %>% bind_rows()
+}) %>% bind_rows()
+
+load("out/MarinaCombiSyns_180905.RData")
+dfEffectBased <- dfsynSummaryConc %>% filter(CDrugAbrv == "Ibrutinib (100nM)") %>%
+  select(BDrugName, addModelSImean, hsaCImean, PatientID)%>%
+  gather(key = "method", value="score", -c("PatientID","BDrugName")) %>% rename(pat = PatientID, drB = BDrugName) %>% filter(pat %in% df_scores$pat, drB %in% df_scores$drB)
+
+df_scores %<>% mutate(method = paste0(method, "_10x10"))
+df4plot <- rbind(df_scores,dfEffectBased)
+df4plot %>% ggplot(aes(x=pat, y=score, fill=pat)) + 
+  facet_grid(method~drB, scales = "free") + geom_bar(stat="identity") + theme(axis.text.x = element_blank()) +guides(fill =F) +scale_fill_manual(values=patcol) +geom_hline(yintercept = 0)
+```
+
 
 Other packages: drc, SYNERGY
+```{r}
+# fit a durface across all patients with variable tau (RHS in the Loewe additivity model, no synergy =1)
+library(drugCombo)
+drugCombo::checkerboardData
+ data <- filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib") %>%
+  select(exp = PatientID, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
+# fit <- drugCombo::fitModel(data, model = "separate12")
+fit <- drugCombo::fitModel(data, mono =NULL, model = "separate12")
+summary(fit)
+plot(fit)
+plot(fit, which = "3d")
+taus <- drugCombo::getTauSurface(fit)
+plot(taus)
+```
+
 
 ```{r}
 sessionInfo()
