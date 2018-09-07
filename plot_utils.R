@@ -592,7 +592,44 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     return(gg)
     }  
 
-
+plotCITiles <- function(df, CItype){
+  for(dr in unique(df$BaseDrugName)){
+    if(dr!="DM"){
+      print(dr)
+      data <- filter(df, BaseDrugName == dr, CombiDrug == "Ibrutinib")
+      for(pat in unique(data$PatientID)){
+        print(pat)
+        dfpat <- filter(data, PatientID == pat) %>%
+          select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
+                 ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
+                 Row = base_conc, Col = combi_conc) %>%
+          mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination
+          mutate(Row = sub("c", "", Row),
+                 Col = sub("c", "", Col),
+                 Response = 100 * Response) # need percentage
+        dfpat <- ReshapeData(dfpat, data.type = "viability") # does not work with multiple replicates
+        
+        #re-order by concentrations
+        dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
+        # print(PlotDoseResponse(dfpat))
+        
+        synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE, Emin = 0, Emax = 100)
+        df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
+          filter(concB !=0 & concC!=0)
+        gg <- ggplot(df_score, aes(x = factor(round(concB*1000,2)), y=factor(round(concC*1000,2)), fill = score)) +
+          geom_tile() +
+          ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
+          ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+          theme_bw(base_size = 16) + coord_fixed() +
+          theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
+                plot.title = element_text(colour =  patcol[pat]))
+        print(gg)
+        # myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
+      }
+    }
+  }
+}
 # adapted from SynergyFinder
 myPlotSynergy <- function (data, type = "2D", save.file = FALSE, len = 3, pair.index = NULL, 
           legend.start = NULL, legend.end = NULL, row.range = NULL, 
