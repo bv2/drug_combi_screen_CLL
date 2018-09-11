@@ -157,15 +157,8 @@ dfsynSummaryConcPatMax <- dfsynSummaryPat %>%
 
 ```
 
-# Overview
-```{r}
-dfsynSummaryConcPat %>% group_by(BDrugName) %>%
-  summarize(nSI = sum(addModelSImed>0),
-            nHSA = sum(hsaCImed>0)) %>%
-  arrange(-nHSA)
-```
-
-# Heatmap SI drug-drug combination
+## SI drug-drug combination
+# Heatmap of combination index
 ```{r SI_heatmap, fig.height=9}
 SImat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>%
@@ -183,30 +176,56 @@ dfsynSummaryConcPat %>%
   rename(SI = addModelSImed) %>% arrange(-SI)
 ```
 
-Annotate heatmaps with signifiance by a paired t-test across all patients samples (separately for each concentration)
-```{r SI_heatmap_anno, fig.height=9}
+## Significance testing across patients
+```{r}
+alpha <- 0.05
+```
+
+Paired t-test across all patients samples (separately for each concentration)
+
+```{r}
 dfsigSI <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
   summarize(pval = t.test(viabBC, viabBC_add, paired =TRUE, alternative= "less")$p.value,
             effect = t.test(viabBC, viabBC_add, paired = TRUE, alternative= "less")$estimate,
-            viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add)) 
+            viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add))  %>%
+  ungroup()
 dfsigSI$pvaladj <- p.adjust(dfsigSI$pval, "BH")
 arrange(dfsigSI, pvaladj)
 
-dfsigSI_summary <- filter(dfsigSI, pvaladj<0.05)%>%
+dfsigSI_summary <- filter(dfsigSI, pvaladj <= alpha)%>%
   group_by(BDrugName, CDrugAbrv) %>%
   summarize(nConc = length(BDrugConcId))
 # filter(dfsigSI, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+```
 
+Paired t-test for each patient using the avaerge across concentration:
+```{r}
+# dfsigSIAcrossConc <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, PatientID) %>%
+#   summarize(viabBCmean = mean(viabBC), viabBC_addmean = mean(viabBC_add)) %>%
+#   ungroup() %>%
+#   group_by(BDrugName, CDrugAbrv, CDrugName) %>%
+#   summarize(pval = t.test(viabBCmean, viabBC_addmean, paired =TRUE, alternative= "less")$p.value,
+#             effect = t.test(viabBCmean, viabBC_addmean, paired = TRUE, alternative= "less")$estimate,
+#             viabBCav = mean(viabBCmean), viabBC_addav = mean(viabBC_addmean)) 
+# dfsigSIAcrossConc$pvaladj <- p.adjust(dfsigSIAcrossConc$pval, "BH")
+# arrange(dfsigSIAcrossConc, pvaladj)
+# 
+# dfsigSI_summary <- filter(dfsigSIAcrossConc, pvaladj<= alpha)
+```
+
+
+## Annotated heatmap
+```{r SI_heatmap_anno, fig.height=9}
 df4hm <- left_join(select(dfsynSummaryConcPat,CDrugAbrv,BDrugName, addModelSImed),
-          dfsigSI_summary, by = c("BDrugName","CDrugAbrv"))
+          dfsigSI, by = c("BDrugName","CDrugAbrv"))
 
 # cases with average SI <0 but signifcant conc with > 0?
-stopifnot(nrow(filter(df4hm, !is.na(nConc), addModelSImed<0)) ==0)
+stopifnot(nrow(filter(df4hm,pvaladj <= alpha, addModelSImed<0)) ==0)
 
 # use ordering from heatmap clustering above
 df4hm$BDrugName <- factor(df4hm$BDrugName, levels = hmSI$tree_row$labels[hmSI$tree_row$order])
 df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmSI$tree_col$labels[hmSI$tree_col$order])
-ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse(!is.na(nConc), "*", ""))) +
+ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse(pvaladj <= alpha, "*", ""))) +
   geom_tile() + geom_text(nudge_y=-0.2) +
   scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
   theme_bw(base_size = 15) +
@@ -219,7 +238,9 @@ ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse
   guides(fill = guide_colorbar(title="SI"))
 ```
 
-# Heatmap HSA
+
+# HSA drug-drug synergies
+## Heatmap HSA
 ```{r CIhsa_heatmap, fig.height=9}
 HSAmat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, hsaCImed) %>%
@@ -229,12 +250,16 @@ HSAmat <- dfsynSummaryConcPat %>%
 hmHSA <- myHeatmap(t(HSAmat), colors=c("navy", "lightblue", "white", "orangered","darkred"), fontsize=15)
 ```
 
+
+## Significance testing across patients
+Paired t-test across all patients samples (separately for each concentration):
 Problem with the current annotation is that there can be significant synergy in one consentration, but across concentration the Index is < 0. This is confusing! If we are only interested in synergy we could also display maximal synergy across concentration in the heatmap showing only the concentration with the highest synergy index.
-```{r CIhsa_heatmap_anno, fig.height=9}
+```{r}
 dfsigHSA <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
   summarize(pval = t.test(effBC, pmax(effB, effC), paired =TRUE, var.equal = TRUE, alternative= "greater")$p.value,
             effect = t.test(effBC, pmax(effB, effC), paired = TRUE, alternative= "greater")$estimate,
-            effBCmean = mean(effBC), effmaxBCmean = mean(pmax(effB, effC))) 
+            effBCmean = mean(effBC), effmaxBCmean = mean(pmax(effB, effC)))   %>%
+  ungroup()
 dfsigHSA$pvaladj <- p.adjust(dfsigHSA$pval, "BH")
 arrange(dfsigHSA, pvaladj)
 filter(dfsigHSA, pvaladj<0.05)%>% arrange(pvaladj)
@@ -243,21 +268,32 @@ filter(dfsigHSA, pvaladj<0.05)%>% arrange(pvaladj)
 dfsigHSA_summary <- filter(dfsigHSA, pvaladj<0.05)%>%
   group_by(BDrugName, CDrugAbrv) %>%
   summarize(nConc = length(BDrugConcId))
+```
 
+Paired t-test for each patient using the avaerge across concentration:
+```{r}
+# dfsigHSAAcrossConc <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, PatientID) %>%
+#   summarize(effbBCmean = mean(effBC), effmaxmean = mean(pmax(effB, effC))) %>%
+#   ungroup() %>%
+#   group_by(BDrugName, CDrugAbrv, CDrugName) %>%
+#   summarize(pval = t.test(effbBCmean, effmaxmean, paired =TRUE, alternative= "greater")$p.value,
+#             effect = t.test(effbBCmean, effmaxmean, paired = TRUE, alternative= "greater")$estimate,
+#             effbBCav = mean(effbBCmean), effMaxAv = mean(effmaxmean)) 
+# dfsigHSAAcrossConc$pvaladj <- p.adjust(dfsigHSAAcrossConc$pval, "BH")
+# arrange(dfsigHSAAcrossConc, pvaladj)
+# 
+# dfsigHSA_summary <- filter(dfsigHSAAcrossConc, pvaladj<=alpha)
+```
 
+```{r CIhsa_heatmap_anno, fig.height=9}
 df4hm <- left_join(select(dfsynSummaryConcPat,CDrugAbrv,BDrugName, hsaCImed),
-          dfsigHSA_summary, by = c("BDrugName","CDrugAbrv"))
+          dfsigHSA, by = c("BDrugName","CDrugAbrv"))
 
 # use ordering from heatmap clustering above
 df4hm$BDrugName <- factor(df4hm$BDrugName, levels = hmHSA$tree_row$labels[hmHSA$tree_row$order])
 df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmHSA$tree_col$labels[hmHSA$tree_col$order])
 
-# cases with average HSA <0 but signifcant conc with > 0
-# stopifnot(nrow(filter(df4hm, !is.na(nConc), hsaCImed<0)) ==0 )
-# plotResponseCurves(dfsyn, "Ibrutinib (100nM)", "Silmitasertib")
-# filter(dfsyn,CDrugAbrv=="Ibrutinib (100nM)", BDrugName=="Silmitasertib" , BDrugConcId =="c1")
-
-ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =hsaCImed, label = ifelse(!is.na(nConc), "*", ""))) +
+ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =hsaCImed, label = ifelse(pvaladj <= alpha, "*", ""))) +
   geom_tile() + geom_text(nudge_y=-0.2) +
   scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
   theme_bw(base_size = 15) +
@@ -346,7 +382,7 @@ df_pvals_SI_vs_muts$pval.adj <-  p.adjust(df_pvals_SI_vs_muts$pval, method="BH")
 # ggplot(df_pvals_SI_vs_muts, aes(x=pval, fill= CDrugAbrv)) +geom_histogram() +facet_wrap(~CDrugAbrv)
 hist(df_pvals_SI_vs_muts$pval)
 
-filter(df_pvals_SI_vs_muts, pval.adj < alpha)
+filter(df_pvals_SI_vs_muts, pval.adj <= alpha)
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Fludarabine")
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Afatinib")
 
@@ -355,7 +391,7 @@ filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Afat
 ```{r volcanoe_SI}
 ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.diff > 0)) +
   geom_point(alpha=0.7) +
-  ggrepel::geom_label_repel(aes(label=ifelse(pval.adj < alpha, combi, "")), label.size= 0, min.segment.length = 0, fill = NA) +
+  ggrepel::geom_label_repel(aes(label=ifelse(pval.adj <= alpha, combi, "")), label.size= 0, min.segment.length = 0, fill = NA) +
   scale_color_manual(values= c("deeppink", "navy")) + guides(col=FALSE) +
   theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
   xlab("Mean SI difference")  +facet_wrap(~mutation)
@@ -372,7 +408,8 @@ dfsyn %>% filter(CDrugAbrv =="Ibrutinib (100nM)", BDrugName =="Navitoclax") %>%
 ## Response curves
 Viability response curves (mean across patients) for single drugs, combination and additive effect model.
 ```{r Ibrutinib (100nM)_Navitoclax_Curves, fig.width=6, fig.height=8}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", annoSI = TRUE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax",
+                   annoSI = TRUE)
 ```
 
 ## Boxplots CI
@@ -415,7 +452,7 @@ plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", annoS
 ```
 
 ```{r Ibrutinib (100nM)_Afatinib_Curves_IGHV, fig.width=10, fig.height=8}
-plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", sep_by_IGHV  = TRUE)
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", sep_by_IGHV  = TRUE, annoP = FALSE)
 ```
 ## Boxplots CI
 ```{r Ibrutinib (100nM)_Afatinib_CIboxplots_Bliss, fig.width=4}
@@ -441,6 +478,19 @@ plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Afatinib", C
 plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Afatinib")
 ```
 
+
+# Ibrutinib (100nM) + Selumetinib
+
+## Response curves
+Viability response curves (mean across patients) for single drugs, combination and additive effect model.
+```{r Ibrutinib (100nM)_Selumetinib_Curves, fig.width=6, fig.height=8}
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)",
+                   drB = "Selumetinib", annoSI = TRUE)
+```
+
+```{r Ibrutinib (100nM)_Selumetinib_CIboxplots_HSA, fig.width=4}
+plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Selumetinib", CI_type = "hsa")
+```
 
 # Ibrutinib (100nM) + Venetoclax
 

@@ -365,7 +365,10 @@ ggvolc = function(df, title ="", Ycut, color=c("deeppink", "navy"), xlab = "") {
 #############################
 
 # plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
-plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE, sep_by_TP53=FALSE, annoSI=FALSE){
+plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
+                               sep_by_IGHV =FALSE, sep_by_TP53=FALSE, annoSI=FALSE, annoP = TRUE){
+
+  stopifnot(CItype %in% c("SI", "HSA"))
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) %>% 
     select(CDrugAbrv, BDrugName, BDrugConcId,BDrugConc, starts_with("viab"), PatientID) %>%
     gather(key="type", value = "viability", starts_with("viab")) %>%
@@ -379,8 +382,14 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
   
   # annotate by SI
   dfanno <- dfsynSummaryPat %>% filter(CDrugAbrv == drC, BDrugName == drB) %>%
-    select(BDrugConcId, addModelSImed)
+    select(BDrugConcId, addModelSImed, hsaCImed)
   df4plot %<>% left_join(dfanno, by = "BDrugConcId")
+  
+  # annotate by p-values
+  if(CItype == "SI") dfsig <- dfsigSI else dfsig <- dfsigHSA
+  dfannop <- dfsig %>% filter(CDrugAbrv == drC, BDrugName == drB) %>%
+    select(BDrugConcId, pval)
+  df4plot %<>% left_join(dfannop, by = "BDrugConcId")
   
   df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
@@ -389,7 +398,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
     stat_summary(fun.y = "mean", geom="line") + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
     theme(legend.position = "top") + 
-    guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th)) 
+    guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th))
   
   if(sep_by_IGHV & !sep_by_TP53){
     gg <- gg + facet_wrap(~IGHV)
@@ -401,7 +410,17 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, sep_by_IGHV =FALSE
   
   if(annoSI){
     if(sep_by_IGHV | sep_by_IGHV) stop("SI annotation for separate IGHV or TP53 not implemented yet")
-    gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+    if(CItype == "SI") {
+      gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
+    } else{
+      gg <- gg + geom_text(aes(x = BDrugConc, label = round(hsaCImed,2)), y=1.3, col="black", size=5)
+    }
+    
+  }
+  
+  if(annoP){
+  if(sep_by_IGHV | sep_by_IGHV) stop("SI p-value annotation for separate IGHV or TP53 not implemented yet")
+  gg <- gg + geom_text(aes(x = BDrugConc, label = paste0("p=",format(pval, digits=2))), y=0, col="gray", size=4)
   }
   
   return(gg)
