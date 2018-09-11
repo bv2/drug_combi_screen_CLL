@@ -148,6 +148,13 @@ dfsynSummaryPat <- dfsyn %>%
                     hsaCImed = median(hsaCI, na.rm =TRUE),
                     addModelSImed = median(addModelSI, na.rm =TRUE)) %>%
   ungroup()
+
+# maximum/minimum across concentrations
+dfsynSummaryConcPatMax <- dfsynSummaryPat %>%
+  group_by(CDrugAbrv,BDrugName) %>%
+  summarize(SImax = max(addModelSImed), HSAmax = max(hsaCImed),
+            Simin = min(addModelSImed), HSAmin = min(hsaCImed))
+
 ```
 
 # Overview
@@ -165,7 +172,7 @@ SImat <- dfsynSummaryConcPat %>%
   dplyr::rename(SI = addModelSImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-myHeatmap(t(SImat), colors=c("navy", "lightblue", "white", "orangered","darkred"), fontsize=15)
+hmSI <- myHeatmap(t(SImat), colors=c("navy", "lightblue", "white", "orangered","darkred"), fontsize=15)
 colSums(SImat>0)
 
 pheatmap(t(SImat), breaks = seq(0, max(SImat), length.out = 100), main = "SI",
@@ -176,26 +183,102 @@ dfsynSummaryConcPat %>%
   rename(SI = addModelSImed) %>% arrange(-SI)
 ```
 
+Annotate heatmaps with signifiance by a paired t-test across all patients samples (separately for each concentration)
+```{r SI_heatmap_anno, fig.height=9}
+dfsigSI <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
+  summarize(pval = t.test(viabBC, viabBC_add, paired =TRUE, alternative= "less")$p.value,
+            effect = t.test(viabBC, viabBC_add, paired = TRUE, alternative= "less")$estimate,
+            viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add)) 
+dfsigSI$pvaladj <- p.adjust(dfsigSI$pval, "BH")
+arrange(dfsigSI, pvaladj)
+
+dfsigSI_summary <- filter(dfsigSI, pvaladj<0.05)%>%
+  group_by(BDrugName, CDrugAbrv) %>%
+  summarize(nConc = length(BDrugConcId))
+# filter(dfsigSI, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+
+df4hm <- left_join(select(dfsynSummaryConcPat,CDrugAbrv,BDrugName, addModelSImed),
+          dfsigSI_summary, by = c("BDrugName","CDrugAbrv"))
+
+# cases with average SI <0 but signifcant conc with > 0?
+stopifnot(nrow(filter(df4hm, !is.na(nConc), addModelSImed<0)) ==0)
+
+# use ordering from heatmap clustering above
+df4hm$BDrugName <- factor(df4hm$BDrugName, levels = hmSI$tree_row$labels[hmSI$tree_row$order])
+df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmSI$tree_col$labels[hmSI$tree_col$order])
+ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse(!is.na(nConc), "*", ""))) +
+  geom_tile() + geom_text(nudge_y=-0.2) +
+  scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
+  theme_bw(base_size = 15) +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+        panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank()) +
+  ylab("Base library") + xlab("Compination compound") +
+  guides(fill = guide_colorbar(title="SI"))
+```
+
 # Heatmap HSA
 ```{r CIhsa_heatmap, fig.height=9}
-SImat <- dfsynSummaryConcPat %>%
+HSAmat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, hsaCImed) %>%
   dplyr::rename(SI = hsaCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Highest single agent Index",
-                  color = colorRampPalette(brewer.pal(n = 7, name ="RdYlBu"))(100))
+hmHSA <- myHeatmap(t(HSAmat), colors=c("navy", "lightblue", "white", "orangered","darkred"), fontsize=15)
+```
+
+Problem with the current annotation is that there can be significant synergy in one consentration, but across concentration the Index is < 0. This is confusing! If we are only interested in synergy we could also display maximal synergy across concentration in the heatmap showing only the concentration with the highest synergy index.
+```{r CIhsa_heatmap_anno, fig.height=9}
+dfsigHSA <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
+  summarize(pval = t.test(effBC, pmax(effB, effC), paired =TRUE, var.equal = TRUE, alternative= "greater")$p.value,
+            effect = t.test(effBC, pmax(effB, effC), paired = TRUE, alternative= "greater")$estimate,
+            effBCmean = mean(effBC), effmaxBCmean = mean(pmax(effB, effC))) 
+dfsigHSA$pvaladj <- p.adjust(dfsigHSA$pval, "BH")
+arrange(dfsigHSA, pvaladj)
+filter(dfsigHSA, pvaladj<0.05)%>% arrange(pvaladj)
+# filter(dfsigHSA, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+
+dfsigHSA_summary <- filter(dfsigHSA, pvaladj<0.05)%>%
+  group_by(BDrugName, CDrugAbrv) %>%
+  summarize(nConc = length(BDrugConcId))
+
+
+df4hm <- left_join(select(dfsynSummaryConcPat,CDrugAbrv,BDrugName, hsaCImed),
+          dfsigHSA_summary, by = c("BDrugName","CDrugAbrv"))
+
+# use ordering from heatmap clustering above
+df4hm$BDrugName <- factor(df4hm$BDrugName, levels = hmHSA$tree_row$labels[hmHSA$tree_row$order])
+df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmHSA$tree_col$labels[hmHSA$tree_col$order])
+
+# cases with average HSA <0 but signifcant conc with > 0
+# stopifnot(nrow(filter(df4hm, !is.na(nConc), hsaCImed<0)) ==0 )
+# plotResponseCurves(dfsyn, "Ibrutinib (100nM)", "Silmitasertib")
+# filter(dfsyn,CDrugAbrv=="Ibrutinib (100nM)", BDrugName=="Silmitasertib" , BDrugConcId =="c1")
+
+ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =hsaCImed, label = ifelse(!is.na(nConc), "*", ""))) +
+  geom_tile() + geom_text(nudge_y=-0.2) +
+  scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
+  theme_bw(base_size = 15) +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+        panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank()) +
+  ylab("Base library") + xlab("Compination compound") +
+  guides(fill = guide_colorbar(title="HSA"))
 ```
 
 # Heatmap Bliss
 Values below 1 indicate synergy.
 ```{r CIBliss_heatmap, fig.height=9}
-SImat <- dfsynSummaryConcPat %>%
+Blissmat <- dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, BlissCImed) %>%
   dplyr::rename(SI = BlissCImed) %>% spread(key=BDrugName, value=SI) %>% 
   column_to_rownames("CDrugAbrv") %>% as.matrix()
 
-pheatmap(t(SImat), breaks = seq(0,1,0.01), main = "Bliss Index",
+pheatmap(t(Blissmat), breaks = seq(0,1,0.01), main = "Bliss Index",
          color = colorRampPalette(brewer.pal(n = 7, name ="RdYlBu"))(100))
 ```
 
