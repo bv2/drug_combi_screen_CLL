@@ -150,6 +150,14 @@ dfsynSummaryPat <- dfsyn %>%
   ungroup()
 ```
 
+# Overview
+```{r}
+dfsynSummaryConcPat %>% group_by(BDrugName) %>%
+  summarize(nSI = sum(addModelSImed>0),
+            nHSA = sum(hsaCImed>0)) %>%
+  arrange(-nHSA)
+```
+
 # Heatmap SI drug-drug combination
 ```{r SI_heatmap, fig.height=9}
 SImat <- dfsynSummaryConcPat %>%
