@@ -251,6 +251,12 @@ filter(df10x10,  CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
   geom_line() + facet_grid(concCvalue ~BaseDrugName, scales = "free_x")
 ```
 
+Overview
+```{r}
+df10x10 %>% filter(base_conc== "c1") %>%
+  group_by(BaseDrugName, concBvalue) %>%
+  summarize(nP = length(unique(PatientID)))
+```
 
 ```{r}
 save(df10x10, file = file.path(outdir, paste0("df10x10_",today,".Rdata")))
