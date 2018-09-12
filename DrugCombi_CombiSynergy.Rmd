@@ -196,6 +196,8 @@ dfsigSI_summary <- filter(dfsigSI, pvaladj <= alpha)%>%
   group_by(BDrugName, CDrugAbrv) %>%
   summarize(nConc = length(BDrugConcId))
 # filter(dfsigSI, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+
+dfsigSI_summary %>% group_by(BDrugName) %>% summarize(nSynPartners = n()) %>% arrange(-nSynPartners)
 ```
 
 Paired t-test for each patient using the avaerge across concentration:
@@ -228,13 +230,14 @@ df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmSI$tree_col$labels[hmSI$tr
 ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse(pvaladj <= alpha, "*", ""))) +
   geom_tile() + geom_text(nudge_y=-0.2) +
   scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
-  theme_bw(base_size = 15) +
-  theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+  theme_bw(base_size = 16) +
+  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1),
         panel.background = element_blank(),
         axis.ticks = element_blank(),
         panel.border = element_blank(),
         panel.grid = element_blank()) +
-  ylab("Base library") + xlab("Compination compound") +
+  ylab("") +xlab("")+
+  # ylab("Base library") + xlab("Combination compound") +
   guides(fill = guide_colorbar(title="SI"))
 ```
 
@@ -296,13 +299,14 @@ df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmHSA$tree_col$labels[hmHSA$
 ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =hsaCImed, label = ifelse(pvaladj <= alpha, "*", ""))) +
   geom_tile() + geom_text(nudge_y=-0.2) +
   scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
-  theme_bw(base_size = 15) +
-  theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+  theme_bw(base_size = 16) +
+  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1),
         panel.background = element_blank(),
         axis.ticks = element_blank(),
         panel.border = element_blank(),
         panel.grid = element_blank()) +
-  ylab("Base library") + xlab("Compination compound") +
+  xlab("") + ylab("") +
+  # ylab("Base library") + xlab("Combination compound") +
   guides(fill = guide_colorbar(title="HSA"))
 ```
 

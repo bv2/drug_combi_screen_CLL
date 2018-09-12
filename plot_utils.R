@@ -32,7 +32,7 @@ plotBaseResponseCurves <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3)
   else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
     
   gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectB, group=status)) +
-    stat_summary(fun.data = "mean_se", aes(col=factor(status)), geom="line") + facet_wrap(~BDrugName, ncol=3, scales = "free_x") +
+    stat_summary(fun.data = "mean_se", aes(col=factor(status)), geom="line", , fun.args = list(mult = 2)) + facet_wrap(~BDrugName, ncol=3, scales = "free_x") +
     stat_summary(fun.data = "mean_se",aes(col=factor(status)), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
     ggpubr::stat_compare_means(method = "t.test", aes(group=status, x=BDrugConc, label =  ..p.signif..), hide.ns = TRUE) +
     guides(col = guide_legend(title=gene))+ xlab("Concentration (µM)") +ylab("viability")+theme_bw(base_size = 14) +
@@ -364,7 +364,7 @@ ggvolc = function(df, title ="", Ycut, color=c("deeppink", "navy"), xlab = "") {
 # Drug Combination Synergy
 #############################
 
-# plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
+# plot the single drug responses and the response to the combination as well as the independent effect as curves (mean + SE) for a pairs of drugs drB and drC.
 plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
                                sep_by_IGHV =FALSE, sep_by_TP53=FALSE, annoSI=FALSE, annoP = TRUE){
 
@@ -375,7 +375,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
     mutate(type = ifelse(type == "viabB", paste(drB, "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
                                 ifelse(type == "viabBC", paste(drB, "+", drC, "(AB)"),
-                                       "additive effect (A*B)"))))
+                                       "Independent effect (A*B)"))))
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   df4plot %<>% mutate(TP53 = ifelse(TP53 == 0, "TP53-wt", "TP53-mut"))
@@ -394,8 +394,8 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
   df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
-    stat_summary(fun.data = "mean_se") +
-    stat_summary(fun.y = "mean", geom="line") + 
+    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2)) +
+    stat_summary(fun.y = "mean", geom="line", , fun.args = list(mult = 2)) + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
     theme(legend.position = "top") + 
     guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th))
@@ -426,7 +426,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
   return(gg)
 }
 
-# plot the single drug responses and the response to the combination as well as the additive effect as curves (mean + SE) for a pairs of drugs drB and drC.
+# plot the single drug responses and the response to the combination as well as the independent effect as curves (mean + SE) for a pairs of drugs drB and drC.
 plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI = FALSE){
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
@@ -436,7 +436,7 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
     mutate(type = ifelse(type == "viabB", paste("Base compound", "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
                                 ifelse(type == "viabBC", paste("Base compound", "+", drC, "(AB)"),
-                                       "additive effect (A*B)"))))
+                                       "Independent effect (A*B)"))))
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   
@@ -448,7 +448,7 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
   df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
-    stat_summary(fun.data = "mean_se") +
+    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2)) +
     stat_summary(fun.y = "mean", geom="line") + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration (nM)")) +
     guides(col = guide_legend(title="")) + ylim(c(0,th)) +
