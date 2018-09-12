@@ -26,7 +26,8 @@ myHeatmap <- function(test, minV=NULL, maxV = NULL, paletteLength=100,
 plotBaseResponseCurves <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3){
   df4plot <- dfBmuts %>% filter(mutation == gene, BDrugName %in% drugs2plot) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
-    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+    mutate(BDrugConc = factor(round(BDrugConc, round2))) %>%
+    mutate(BDrugName = factor(BDrugName, levels = drugs2plot)) # order as specified
   
   if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
   else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))
@@ -48,7 +49,8 @@ plotBaseResponseCurves <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3)
 plotBaseBoxplots <- function(dfBmuts, drugs2plot, gene = "TP53", round2=3){
   df4plot <- dfBmuts %>% filter(mutation == gene, BDrugName %in% drugs2plot) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
-    mutate(BDrugConc = factor(round(BDrugConc, round2)))
+    mutate(BDrugConc = factor(round(BDrugConc, round2))) %>%
+    mutate(BDrugName = factor(BDrugName, levels = drugs2plot)) # order as specified
   
     if(gene == "TP53") df4plot %<>% mutate(status = ifelse(status ==0, "wt","mut"))
     else if(gene == "IGHV") df4plot %<>% mutate(status = ifelse(status ==0, "U-CLL","M-CLL"))

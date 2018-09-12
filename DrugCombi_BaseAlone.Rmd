@@ -137,19 +137,19 @@ paste(unique(df_signIGHV$BDrugName), collapse = ", ")
 ## Boxplots and Curves
 Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at an FDR of 1%.
 ```{r boxplot_base_TP53, fig.width=8, fig.height=3}
-plotBaseBoxplots(df_effectB_vs_muts, df_signTP53$BDrugName, gene = "TP53")
+plotBaseBoxplots(df_effectB_vs_muts, unique(df_signTP53$BDrugName), gene = "TP53")
 ```
 ```{r curves_base_TP53, fig.width=7, fig.height=2.8}
-plotBaseResponseCurves(df_effectB_vs_muts, df_signTP53$BDrugName, gene = "TP53")
+plotBaseResponseCurves(df_effectB_vs_muts, unique(df_signTP53$BDrugName), gene = "TP53")
 ```
 
-```{r, boxplot_base_IGHV, fig.width=8, fig.height=5}
-selDrugs <- c("Ibrutinib", "R406", "Spebrutinib", "AZD7762", "PF 477736")
+```{r, boxplot_base_IGHV, fig.width=8, fig.height=7.5}
+selDrugs <- c("Ibrutinib", "R406", "Spebrutinib", "Dasatinib", "AZD7762", "PF 477736", "Navitoclax", "Venetoclax")
 stopifnot(all(selDrugs %in% df_signIGHV$BDrugName))
 plotBaseBoxplots(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
-```{r curves_base_IGHV, fig.width=7, fig.height =5}
+```{r curves_base_IGHV, fig.width=7, fig.height =7.5}
 plotBaseResponseCurves(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
