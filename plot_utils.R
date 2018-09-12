@@ -485,7 +485,8 @@ plotBoxplotCI <- function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
 }
 
 # plot bar plot of individual combination indices for each sample
-plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"), annotate=NULL){
+plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"),
+                             annotate=NULL, pats2label = NULL, y_nudge = 0.1, label_size=5){
   
   CI_type <- match.arg(CI_type)
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName == drB) 
@@ -535,6 +536,9 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"), a
     }
   }
   
+  gg  <- gg + geom_text(y= max(df4plot$CI + df4plot$CIse)- y_nudge,
+                        aes(label = ifelse(PatientID %in% pats2label, as.character(PatientID), "")),
+                        angle = 90, size = label_size)
   return(gg)
 }
 
@@ -642,7 +646,7 @@ plotCITiles <- function(df, CItype){
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
           theme_bw(base_size = 16) + coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
-                plot.title = element_text(colour =  patcol[pat]))
+                plot.title = element_text(colour =  "black"))
         print(gg)
         # myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
       }

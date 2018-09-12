@@ -49,10 +49,11 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 
 
 # Data Import:
-Load processed Data from DrugCombi_QC.Rmd and DrugCombi_AddOmics (moelcular data on patient samples)
+Load processed Data from DrugCombi_QC.Rmd, DrugCombi_AddOmics (moelcular data on patient samples) and DrugCombi_10x10.Rmd
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 load(file.path(outdir, paste0("OmicsData",today,".RData")))
+load(file.path(outdir, paste0("df10x10_",today,".RData")))
 ```
 
 ```{r}
@@ -431,7 +432,14 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type 
 ## Waterfall CI
 
 ```{r Ibrutinib (100nM)_Navitoclax_CIwaterfall, fig.width=10, fig.height=3}
-plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Navitoclax", CI_type = "SI") #+theme(axis.text.x = element_text(angle=90))
+drB <- "Navitoclax"
+#annotate patients with 10x10 data
+pats2label <- df10x10 %>%
+  filter(CombiDrug == "Ibrutinib", BaseDrugName == drB) %>%
+  select(PatientID) %>% unique()
+plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)",
+                drB = drB, CI_type = "SI",
+                pats2label = pats2label$PatientID, label_size = 3.5)
 ```
 
 ```{r}
@@ -474,7 +482,14 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = 
 ## Waterfall CI
 
 ```{r Ibrutinib (100nM)_Afatinib_CIwaterfall, fig.width=10, fig.height=3}
-plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Afatinib", CI_type = "SI")
+drB <- "Afatinib"
+#annotate patients with 10x10 data
+pats2label <- df10x10 %>%
+  filter(CombiDrug == "Ibrutinib", BaseDrugName == drB) %>%
+  select(PatientID) %>% unique()
+plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)",
+                drB = drB, CI_type = "SI",
+                pats2label = pats2label$PatientID, label_size = 3.5)
 ```
 
 ## Scatter
@@ -519,7 +534,14 @@ plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type 
 
 ## Waterfall CI
 ```{r Ibrutinib (100nM)_Venetoclax_CIwaterfall, fig.width=10, fig.height=3}
-plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Venetoclax", CI_type = "SI") +theme(axis.text.x = element_text(angle=90))
+drB <- "Venetoclax"
+#annotate patients with 10x10 data
+pats2label <- df10x10 %>%
+  filter(CombiDrug == "Ibrutinib", BaseDrugName == drB) %>%
+  select(PatientID) %>% unique()
+plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)",
+                drB = drB, CI_type = "SI",
+                pats2label = pats2label$PatientID, label_size = 3.5)
 ```
 
 ## Scatter
