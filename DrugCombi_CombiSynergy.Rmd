@@ -371,26 +371,23 @@ minOcc <- 3
 
 
 ```{r test_SI}
-dfSI_gen_test <- dfsynSummaryConc %>%
-  select(BDrugName, CDrugAbrv, addModelSImean, PatientID) %>%
+dfSI_gen_test <- dfsyn %>%
+  select(BDrugName,BDrugConc, BDrugConcId, CDrugAbrv, addModelSI, PatientID) %>%
   left_join(gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
 dfSI_gen_test %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
 
 # only inclduing durg-drug combinations with at least 3 samples from mutated and unmutated group
-df_pvals_SI_vs_muts <- group_by(dfSI_gen_test, CDrugAbrv, BDrugName, mutation, combi) %>%
+df_pvals_SI_vs_muts <- group_by(dfSI_gen_test, CDrugAbrv, BDrugName,BDrugConcId, BDrugConc, mutation, combi) %>%
   summarize(n_muts= sum(status==1), n_wt =sum(status==0),
-            pval = ifelse(n_muts<minOcc | n_wt<minOcc, NA,t.test(addModelSImean ~ status, var.equal= TRUE)$p.value),
-            mean.diff = ifelse(n_muts<minOcc | n_wt<minOcc, NA,diff(t.test(addModelSImean ~ status, var.equal= TRUE)$estimate))) %>%
+            pval = ifelse(n_muts<minOcc | n_wt<minOcc, NA,t.test(addModelSI ~ status, var.equal= TRUE)$p.value),
+            mean.diff = ifelse(n_muts<minOcc | n_wt<minOcc, NA,diff(t.test(addModelSI ~ status, var.equal= TRUE)$estimate))) %>%
   filter(!is.na(pval)) %>% ungroup()
 df_pvals_SI_vs_muts$pval.adj <-  p.adjust(df_pvals_SI_vs_muts$pval, method="BH")
-# df_pvals_SI_vs_muts$pval.adj <-  ihw(df_pvals_SI_vs_muts$pval, factor(df_pvals_SI_vs_muts$CDrugAbrv), alpha = 0.05)
-# ggplot(df_pvals_SI_vs_muts, aes(x=pval, fill= CDrugAbrv)) +geom_histogram() +facet_wrap(~CDrugAbrv)
 hist(df_pvals_SI_vs_muts$pval)
 
 filter(df_pvals_SI_vs_muts, pval.adj <= alpha)
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Fludarabine")
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Afatinib")
-
 ```
 
 ```{r volcanoe_SI}
@@ -400,6 +397,39 @@ ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.
   scale_color_manual(values= c("deeppink", "navy")) + guides(col=FALSE) +
   theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
   xlab("Mean SI difference")  +facet_wrap(~mutation)
+```
+
+Exploratory
+```{r}
+# IGHV assoc.
+explSIgen <- function(drB, drC) {
+left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
+  filter(BDrugName == drB, CDrugAbrv == drC) %>%
+  mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL")) %>%
+ggplot(aes(x=IGHV, y=addModelSI, group=IGHV, fill= IGHV)) +geom_boxplot() + facet_wrap(~BDrugConc, nrow=1) + 
+  ggtitle(paste(drC, drB, sep="+")) + ylab("SI") + ggpubr::stat_compare_means(method = "t.test")
+}
+
+gg1 <- explSIgen("Fludarabine","Ibrutinib (100nM)")
+gg2 <- explSIgen("Fludarabine","Ibrutinib (10nM)")
+gg3 <- explSIgen("Afatinib","Ibrutinib (100nM)")
+gg4 <- explSIgen("Afatinib","Ibrutinib (10nM)")
+grid.arrange(gg1,gg2,gg3,gg4, ncol=1)
+
+# TP53 assoc.
+explSIgen <- function(drB, drC) {
+left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
+  filter(BDrugName == drB, CDrugAbrv == drC) %>%
+  mutate(TP53 = ifelse(TP53 == 0, "TP53 wt", "TP53 mut")) %>%
+ggplot(aes(x=TP53, y=addModelSI, group=TP53, fill= TP53)) +geom_boxplot() + facet_wrap(~BDrugConc, nrow=1) + 
+  ggtitle(paste(drC, drB, sep="+")) + ylab("SI") + ggpubr::stat_compare_means(method = "t.test")
+}
+
+gg1 <- explSIgen("Fludarabine","Ibrutinib (100nM)")
+gg2 <- explSIgen("Fludarabine","Ibrutinib (10nM)")
+gg3 <- explSIgen("Afatinib","Ibrutinib (100nM)")
+gg4 <- explSIgen("Afatinib","Ibrutinib (10nM)")
+grid.arrange(gg1,gg2,gg3,gg4, ncol=1)
 ```
 
 # Ibrutinib (100nM) + Navitoclax
@@ -510,6 +540,25 @@ plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)",
 ```{r Ibrutinib (100nM)_Selumetinib_CIboxplots_HSA, fig.width=4}
 plotBoxplotCI(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Selumetinib", CI_type = "hsa")
 ```
+
+## Waterfall CI
+```{r Ibrutinib (100nM)_Selumetinib_CIwaterfall, fig.width=10, fig.height=3}
+plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)", drB = "Selumetinib",
+                CI_type = "SI")
+```
+
+
+## Scatter
+```{r Ibrutinib (100nM)_Selumetinib_Scatter, fig.width=9}
+plotScattter(dfsyn,  drC = "Ibrutinib (100nM)", drB = "Selumetinib")
+```
+
+```{r}
+dfsynSummaryConc %>% filter(CDrugAbrv =="Ibrutinib (100nM)", BDrugName =="Selumetinib") %>%
+  summarize(nSyn = sum(addModelSImean >0),
+            med =median(addModelSImean))
+```
+
 
 # Ibrutinib (100nM) + Venetoclax
 

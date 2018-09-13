@@ -614,11 +614,12 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     df4plot %<>% rename(viability = normalizedValue)
     df4plot %<>%  select(concCvalue, concBvalue, viability)
     if(type == "tile"){
-    gg <- ggplot(df4plot, aes(x=factor(concBvalue), y=factor(concCvalue), fill = viability)) +
+    gg <- ggplot(df4plot, aes(x=factor(round(concBvalue*1000,2)), y=factor(round(concCvalue*1000,2)), fill = viability)) +
         geom_tile() + 
-        ggtitle(paste(drB, pat)) +
+        ggtitle(pat) +
         scale_fill_gradient(low = "white",high = "navy", limits=c(0,1.4)) +
-      ylab("Ibrutinib") +xlab (drB) +theme_bw(base_size = 15) + coord_fixed() +
+      ylab("Ibrutinib (nM)") + xlab(paste(drB, "(nM)")) +
+      theme_bw(base_size = 16) + coord_fixed() +
       theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
     gg
     } else if(type == "contour"){
