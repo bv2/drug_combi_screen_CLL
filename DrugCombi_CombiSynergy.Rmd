@@ -362,7 +362,7 @@ pheatmap(t(Blissmat), breaks = seq(0,1,0.01), main = "Bliss Index",
 <!-- filter(dflm, padj < 0.05) -->
 <!-- ``` -->
 
-# Volanoe SI vs TP53 and Ibrutinib
+# Genetic influences on synergies: Volanoe SI vs TP53 and Ibrutinib
 
 ```{r}
 alpha <- 0.05
@@ -683,31 +683,43 @@ BCRi <- BCRi[BCRi != "Ibrutinib (10nM)"]
 ```
 
 ## Waterfall plot SI
-```{r BCRi_WaterfallSI, fig.height= 7, fig.width=9}
+```{r BCRi_WaterfallSI, fig.height= 7, fig.width=8.5}
 B_BCRi <- DrugMetaList$DrugInfoBase %>% filter(grepl("Btk", Target) | grepl("PI3Kδ", Target) | grepl("Syk", Target))
 B_BCL2 <-  DrugMetaList$DrugInfoBase %>% filter(grepl("Bcl-2", Target))
-
+DrugMetaList$DrugInfoBase
 df_orderedbyIbru100 <-  filter(dfsynSummaryConcPat, CDrugAbrv == "Ibrutinib (100nM)") %>% arrange(addModelSImed)
 dfsynSummaryConcPat$BDrugName <- factor(dfsynSummaryConcPat$BDrugName, df_orderedbyIbru100$BDrugName)
 
 
 dfsynSummaryConcPat %>% filter(CDrugAbrv %in% BCRi) %>%
   mutate(type = ifelse(BDrugName %in% B_BCRi$niceName, "BCRi", 
-                         ifelse(BDrugName %in% B_BCL2$niceName, "BCL2i", "other"))) %>%
+                         ifelse(BDrugName %in% B_BCL2$niceName, "BCL2i",
+                                ifelse(BDrugName %in% c("Nutlin-3", "Fludarabine", "Afatinib"), as.character(BDrugName),
+                                       "other")))) %>%
   mutate(CDrugAbrv = ifelse(CDrugAbrv == "Ibrutinib (100nM)", "Ibrutinib", CDrugAbrv)) %>%
   mutate(CDrugAbrv = factor(CDrugAbrv, levels = c("Ibrutinib", BCRi[BCRi!="Ibrutinib (100nM)"]))) %>%
   ggplot(aes(x = BDrugName, y = addModelSImed, fill=type)) + geom_bar(stat="identity") +
   facet_grid(CDrugAbrv~.) + theme_bw(base_size = 18) +
-  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1,size=12),
-        axis.ticks.x = element_blank(),
+  theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1,size=13),
+        # axis.ticks.x = element_blank(),
         panel.background = element_rect(fill = "white"),
-        strip.background = element_blank()) +
-  ylab("Synergy Index (SI)") + xlab("Base compound") 
+        strip.background = element_blank(),
+        strip.text = element_text(size=13),
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(0,0,-2,0)) + # move legend closer to panel
+  ylab("Synergy Index (SI)") + xlab("") + #xlab("Base compound") +
+  scale_fill_manual(values= c("other" = "gray", "BCRi" = "forestgreen", "BCL2i"= "purple",
+                              "Nutlin-3" = "cornflowerblue", "Fludarabine" = "skyblue", "Afatinib" = "orange"))+
+  guides(fill = guide_legend(title=""))
 ```
 
 ## Response curves
-```{r BCRi_ResponseCurves, fig.height= 8, fig.width=12}
-plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406", "AZD7762", "Dasatinib", "PF 477736", "Idelalisib"), annoSI = TRUE)
+```{r BCRi_ResponseCurves, fig.height= 7, fig.width=8}
+plotMultipleBResponseCurves(dfsyn,  drC = "Ibrutinib (100nM)", drsB = c("Spebrutinib", "Duvelisib", "R406","Idelalisib",  "Dasatinib","AZD7762", "PF 477736"), annoSI = FALSE) +
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(0,0,-2,0)) # move legend closer to panel
 ```
 
 ##Scatterplot

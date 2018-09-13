@@ -129,7 +129,8 @@ plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutini
 ```{r Combi_Ibru100_heatmap_patient_drug, fig.width=10}
 # use eucliden diatnace for patient (absolute value of drug response/sensitivty o interest)
 # use correlation distance for drugs (absolute valued dep on conc, interesting is whether they afffect similar patient to similar extent)
-mat <- plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug",
+mat <- plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing,
+                   CDrugAbrv4plot = "Ibrutinib (100nM)", type = "PatDrug",
                    useAverage = FALSE, returnMat = TRUE, dist2usecols = "correlation")
 ```
 
@@ -164,18 +165,18 @@ plotHeatmap(df4ana = df4ana, dfMuts = dfMuts4testing, CDrugAbrv4plot = "Idelalis
 
 ## Heatmaps
 ### Ibrutinib
-```{r Heatmap_DrugDrug_Ibrutinib, fig.width=12, fig.height=6}
+```{r Heatmap_DrugDrug_Ibrutinib, fig.width=8, fig.height=4}
 matIbru <- plotHeatmap(df4ana, dfMuts,  "Ibrutinib (100nM)", type = "DrugDrug",
                        useAverage = TRUE, DrugDrugbyIGHV = TRUE, returnMat = TRUE)
 ```
 ### Idelalisib
-```{r Heatmap_DrugDrug_Idelalisib, fig.width=12, fig.height=6}
+```{r Heatmap_DrugDrug_Idelalisib, fig.width=8, fig.height=4}
 matIdel <- plotHeatmap(df4ana, dfMuts,  "Idelalisib", type = "DrugDrug", 
                        useAverage = TRUE, DrugDrugbyIGHV = TRUE, returnMat = TRUE)
 ```
 
 ### jointly
-```{r Heatmap_DrugDrug_Ibru+Idel, fig.height=7}
+```{r Heatmap_DrugDrug_Ibru+Idel, fig.height=6.5, fig.width=6.5}
 commonPats <- intersect(rownames(matIdel), rownames(matIbru))
 matIdel <- matIdel[commonPats,]
 matIbru <- matIbru[commonPats,]
@@ -196,7 +197,9 @@ corCombi <- corCombiIdel + corCombiIbru
 diag(corCombi) <- 1
 
 pheatmap(corCombi, cluster_rows = FALSE, cluster_cols =FALSE,
-         main="Correlation of viability values across patients for Ibrutinib (lower triangle) and CAL-101 (upper triangle)")
+         show_rownames = FALSE, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
+               breaks=seq(-0.2,1,0.01), fontsize = 14)
+         # main="Correlation of viability values across patients for Ibrutinib (lower triangle) and CAL-101 (upper triangle)")
 ```
 
 

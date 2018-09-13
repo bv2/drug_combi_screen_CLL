@@ -233,18 +233,26 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
              treeheight_col = 12, treeheight_row = 12)
     
   } else if(type == "PatDrug"){
-    
+    #rotate tree on patients by IGHV status
     if(!useAverage){
       # outlying values cut off at 1.4
       effectBPlusC_mat[is.na(effectBPlusC_mat)] <- 1.4
       fsz <- 5
     } else fsz <- 12
+    
+    callbackIGHV = function(hc, mat){
+      ighv <- dfMuts$IGHV
+      names(ighv) <- dfMuts$PatientID
+      dend = reorder(as.dendrogram(hc), wts = ighv[rownames(mat)])
+      as.hclust(dend)
+    }
       pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows=dist2userows,
                clustering_distance_cols = dist2usecols,
                color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
                breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
                treeheight_row = 15, treeheight_col = 15, annotation_row = dfanno, annotation_colors =anno_colors,
-               annotation_legend = FALSE, fontsize_col=fsz)
+               annotation_legend = FALSE, fontsize_col=fsz,
+               clustering_callback = callbackIGHV)
 
     
   } else if(type == "DrugDrug"){
@@ -253,15 +261,18 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
         corDrug <- cor(mat, use="complete.obs")
         hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
                clustering_distance_cols = dist2usecols,
-               color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
-               treeheight_row = 15, treeheight_col = 15, main = "M-CLL",breaks=seq(0,1,0.01))
+               color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
+               treeheight_row = 0, treeheight_col = 0, #main = "M-CLL",
+               breaks=seq(-0.2,1,0.01),
+               legend=FALSE, show_colnames = FALSE, show_rownames = FALSE,  fontsize = 16)
         mat <- effectBPlusC_mat[patsUCLL, ]
         corDrug <- cor(mat, use="complete.obs")
         hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
                  clustering_distance_cols = dist2usecols,
-                 color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100),
-                 treeheight_row = 15, treeheight_col = 15, main = "U-CLL",
-                 breaks=seq(0,1,0.01))
+                 color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
+                 treeheight_row = 0, treeheight_col = 0, #main = "U-CLL",
+                 breaks=seq(-0.2,1,0.01), show_colnames = FALSE, show_rownames = FALSE,
+                 fontsize = 16, legend=FALSE)
         grid.arrange(hmMCLL$gtable, hmUCLL$gtable, ncol =2)
         
       } else {
@@ -396,7 +407,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
   df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
-    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2)) +
+    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2), geom="errorbar", width=0.05) +
     stat_summary(fun.y = "mean", geom="line", , fun.args = list(mult = 2)) + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
     theme(legend.position = "top") + 
@@ -433,7 +444,6 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
   df4plot <- df %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c",5:1))) %>%
     select(CDrugAbrv, BDrugName, BDrugConcId,BDrugConc, starts_with("viab"), PatientID) %>%
-    mutate(BDrugName = factor(BDrugName, levels =drsB)) %>% #keep order as specified
     gather(key="type", value = "viability", starts_with("viab")) %>%
     mutate(type = ifelse(type == "viabB", paste("Base compound", "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
@@ -446,16 +456,17 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
   dfanno <- dfsynSummaryPat %>% filter(CDrugAbrv == drC, BDrugName %in% drsB) %>%
     select(BDrugConcId, addModelSImed, BDrugName)
   df4plot %<>% left_join(dfanno, by = c("BDrugConcId", "BDrugName"))
-  
+  df4plot %<>% mutate(BDrugName = factor(BDrugName, levels =drsB)) #keep order as specified
   df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
-    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2)) +
+    stat_summary(fun.data = "mean_se", fun.args = list(mult = 2), geom="errorbar", width=0.15) +
     stat_summary(fun.y = "mean", geom="line") + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration (nM)")) +
     guides(col = guide_legend(title="")) + ylim(c(0,th)) +
     facet_wrap(~ BDrugName, ncol = 4) +theme(legend.position = "top") +
-    guides(col=guide_legend(nrow=2,byrow=TRUE, title = ""))
+    guides(col=guide_legend(nrow=2,byrow=TRUE, title = "")) +
+    theme(strip.background = element_blank())
   
   if(annoSI){
     gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
@@ -641,10 +652,15 @@ plotCITiles <- function(df, CItype){
         synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE, Emin = 0, Emax = 100)
         df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
           filter(concB !=0 & concC!=0)
+        # dfsynCon <- filter(df_score, score>0) %>% select(concB,concC)
+        # print(paste(dr,":", paste0(unique(dfsynCon$concB), collapse = ", ")))
+        # print(paste("Ibrutnib :", paste0(unique(dfsynCon$concC), collapse = ", ")))
+        
         gg <- ggplot(df_score, aes(x = factor(round(concB*1000,2)), y=factor(round(concC*1000,2)), fill = score)) +
           geom_tile() +
           ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
-          ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
+          # ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
+          ggtitle(pat) +
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
           theme_bw(base_size = 16) + coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),

@@ -149,7 +149,7 @@ stopifnot(all(selDrugs %in% df_signIGHV$BDrugName))
 plotBaseBoxplots(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
-```{r curves_base_IGHV, fig.width=7, fig.height =7.5}
+```{r curves_base_IGHV, fig.width=7, fig.height =6.5}
 plotBaseResponseCurves(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
@@ -199,11 +199,20 @@ names(cols_mut) <- c("wt", "mut")
 anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
 names(anno_colors) <- colnames(dfanno)
 
+callbackIGHV = function(hc, mat){
+      ighv <- dfMuts$IGHV
+      names(ighv) <- dfMuts$PatientID
+      dend = reorder(as.dendrogram(hc), wts = ighv[rownames(mat)])
+      as.hclust(dend)
+}
+
  pheatmap(effectB_mat, na_col="gray", clustering_distance_rows="euclidean",
          clustering_distance_cols = "euclidean",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = FALSE,
-         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE)
+         treeheight_row = 10, treeheight_col = 10,
+         annotation_row = dfanno, annotation_colors =anno_colors, annotation_legend = FALSE,
+         clustering_callback = callbackIGHV)
 ```
 
 Average over concentrations
@@ -232,7 +241,7 @@ names(anno_colors) <- colnames(dfanno)
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
          treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,
-         annotation_legend = FALSE, fontsize = 12)
+         annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV)
 ```
 
 
