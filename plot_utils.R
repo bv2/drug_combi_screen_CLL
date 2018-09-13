@@ -141,12 +141,12 @@ plotComparsionCDrugs <- function(df, CDrugAbrv.x, CDrugAbrv.y, range = c(0,1.4),
     geom_point() +
     xlab(paste("Combination effect with",CDrugAbrv.x,  "\n (viability relative to DMSO control)")) +
     ylab(paste("Combination effect with",CDrugAbrv.y,  "\n (viability relative to DMSO control)")) +
-    facet_wrap(~BDrugName) +
+    facet_wrap(~BDrugName, ncol=5) +
+    # annotate("text", x=range[1]+0.3, y=range[2]-0.1,
+    #          label=paste("cor ==", (round(summarize(group_by(df, BDrugName), cor=cor(effectBC.x, effectBC.y))$cor,2))), parse=T, size=3) +
     annotate("text", x=range[1]+0.3, y=range[2]-0.1,
-             label=paste("cor ==", (round(summarize(group_by(df, BDrugName), cor=cor(effectBC.x, effectBC.y))$cor,2))), parse=T, size=3) +
-    # annotate("text", x=range[2]-0.3, y=range[2]-0.1,
-    #          label=paste("R2 ==", round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.x - mean(effectBC.x)^2))$r2,2),
-    #                      round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.y - mean(effectBC.y)^2))$r2,2), parse=T), size=3) +
+             label=paste("R^2 ==", pmin(round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.x - mean(effectBC.x)^2))$r2,2),
+                         round(summarize(group_by(df, BDrugName), r2= 1 - sum((effectBC.x - effectBC.y)^2)/sum(effectBC.y - mean(effectBC.y)^2))$r2,2))), parse=T, size=3) +
     guides(col=guide_legend(ncol=1)) + geom_abline(slope=1, intercept=0)
   
 } else if( type=="boxplot_joint"){
@@ -408,7 +408,7 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
   
   gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
     stat_summary(fun.data = "mean_se", fun.args = list(mult = 2), geom="errorbar", width=0.05) +
-    stat_summary(fun.y = "mean", geom="line", , fun.args = list(mult = 2)) + 
+    stat_summary(fun.y = "mean", geom="line", fun.args = list(mult = 2)) + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
     theme(legend.position = "top") + 
     guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th))

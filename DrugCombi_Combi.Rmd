@@ -88,8 +88,8 @@ cowplot::plot_grid(gg1, gg2, align = "tb", axis = "hv", labels = c("A", "B"),
 
 ## Comparison Ibrutinib vs Idelalisib
 ### Overall
-```{r Ibru100vsIdel, fig.height=9, fig.width=12}
-plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_factBDrug") +guides(col=FALSE)
+```{r Ibru100vsIdel, fig.height=10.5, fig.width=10}
+plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_factBDrug") + guides(col=FALSE)
 ```
 
 ## Separately for M- and U-CLL
@@ -110,9 +110,12 @@ plotComparsionCDrugs(filter(df4ana, PatientID %in% UCLLpat),
 ### In combination with Afatinib or Spebrutinib
 ```{r IbruvsIdel_inCombis, fig.width=9, fig.height=4}
 df4ana %>% filter(BDrugName %in% c("Afatinib","Spebrutinib"), CDrugAbrv %in% c("Ibrutinib (100nM)", "Idelalisib")) %>% 
-  ggplot(aes(x=BDrugConcId, y=effectBC)) + geom_boxplot(aes(fill=CDrugAbrv)) + facet_wrap(~BDrugName) +
+  ggplot(aes(x=as.factor(round(BDrugConc*1000,2)), y=effectBC, group = CDrugAbrv)) + 
+  stat_summary(fun.data = "mean_se", geom = "errorbar", fun.args = list(mult=2), width=0.1, aes(col = CDrugAbrv)) +
+  stat_summary(fun.y = "mean", geom = "line", fun.args = list(mult=2), aes(col = CDrugAbrv)) +
+  facet_wrap(~BDrugName) +
   ggpubr::stat_compare_means(method = "t.test", aes(group=CDrugAbrv, label =  ..p.signif..), hide.ns = TRUE) +
-  guides(fill = guide_legend(title="Combination compound")) + xlab("concentration") +ylab("viability") +theme_bw()
+  guides(col = guide_legend(title="Combination compound")) + xlab("concentration (nM)") +ylab("viability") +theme_bw()
 
 ```
 
@@ -339,6 +342,15 @@ stopifnot(sel_combis %in% df_signIGHV$combi)
 
 plotCombiResponseCurves(df_combis_vs_muts, sel_combis, gene = "IGHV")
 ```
+
+
+<!-- # Meth Cluster -->
+<!-- ```{r} -->
+<!-- df %>% group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% -->
+<!--   dplyr::summarise(pIP = summary(lm(effectBC ~ Methylation_Cluster))$coefficients[2,4], -->
+<!--                    pLP = summary(lm(effectBC ~ Methylation_Cluster))$coefficients[3,4]) -->
+<!-- ``` -->
+
 #SessionInfo
 ```{r}
 sessionInfo()
