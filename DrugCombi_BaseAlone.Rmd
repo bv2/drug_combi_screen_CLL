@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 
 #Introduction
@@ -97,6 +97,11 @@ df_pvals_effectB_vs_muts$pval.adj <- p.adjust(df_pvals_effectB_vs_muts$pval, met
 hist(df_pvals_effectB_vs_muts$pval)
 ```
 
+```{r}
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(df_pvals_effectB_vs_muts, file= paste0(outdir,"/tables/pvalues_mut_BaseDrugs",today,".csv"))
+```
+
 
 ```{r}
 # FDR threshold
@@ -153,7 +158,43 @@ plotBaseBoxplots(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 plotBaseResponseCurves(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
 
-## Heatmap on base viability values
+# Test for associaiton to methylation data
+```{r methylation_cluster_base, fig.height=8, fig.width=10}
+df_base_vs_meth <- left_join(df_effectB, patData, by = "PatientID")
+df_pvals_effB_vs_meth <- df_base_vs_meth %>% group_by(BDrugName, BDrugConcId) %>%
+  dplyr::summarise(pval = anova(lm(effectB ~ Methylation_Cluster))$'Pr(>F)'[1])
+
+# adjust for multiple testing and filter to FDR < alpha
+df_pvals_effB_vs_meth$pval.adj <- p.adjust(df_pvals_effB_vs_meth$pval, method = "BH")
+hist(df_pvals_effB_vs_meth$pval)
+dfsig_effB_vs_meth <- df_pvals_effB_vs_meth %>% filter(pval.adj < alpha)
+unique(dfsig_effB_vs_meth$BDrugName)
+length(unique(dfsig_effB_vs_meth$BDrugName))
+
+# plot signifcant base drugs
+sel_drugs <- dfsig_effB_vs_meth %>% select(BDrugName)
+
+#plot curves
+df4plot <- df_base_vs_meth %>% filter(BDrugName %in% sel_drugs$BDrugName, !is.na(Methylation_Cluster)) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(1000*BDrugConc, 0)))
+  
+  gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectB, group=Methylation_Cluster)) +
+    stat_summary(fun.data = "mean_se", aes(col=factor(Methylation_Cluster)), geom="line") +
+    facet_wrap(~ BDrugName, ncol=3, scales = "free_x") +
+    stat_summary(fun.data = "mean_se",aes(col=factor(Methylation_Cluster)), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
+    ggpubr::stat_compare_means(method = "t.test", aes(group = Methylation_Cluster, x = BDrugConc, label =  ..p.signif..), hide.ns = TRUE, label.y = 1.3) +
+    guides(col = guide_legend(title="Methylation Cluster"))+ xlab("Concentration (nM)") +ylab("viability")+theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1)) +
+    scale_color_manual(values= c("LP" = "navy", "IP" = "orange", "HP"="darkred")) + ylim(c(0,1.4))
+  
+  gg
+```
+
+
+
+# Heatmap on base viability values
 ```{r}
 df_effectB %<>% mutate(BDrugNameConc = paste(BDrugName, BDrugConcId, sep="_"))
 effectB_mat <- df_effectB %>% 

@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 #Introduction
 
@@ -86,8 +86,57 @@ cowplot::plot_grid(gg1, gg2, align = "tb", axis = "hv", labels = c("A", "B"),
                    rel_widths = c(1,1.7), label_size = 18, vjust = 1)
 ```
 
-## Comparison Ibrutinib vs Idelalisib
-### Overall
+# Comparison Ibrutinib vs Idelalisib
+
+## Test for different combination parterns
+```{r}
+  alpha <- 0.05
+  df.ibru <- filter(df4ana, CDrugAbrv=="Ibrutinib (100nM)")
+  df.idel <- filter(df4ana, CDrugAbrv=="Idelalisib")
+
+  # only takes common patient samples of the two df 
+  df_Ibru_Idel <- merge(df.ibru, df.idel, by=c("PatientID","BDrugID", "BDrugConcId",
+                             "BDrugConc", "BDrugName"))
+  print(paste0("n_pats=", length(unique(df_Ibru_Idel$PatientID))))
+  print(paste0("n_points=", nrow(df_Ibru_Idel)))
+  
+  dfpval_Ibru_Idel <-  df_Ibru_Idel %>% group_by(BDrugName, BDrugConc) %>% summarize(pval= t.test(effectBC.x, effectBC.y, paired = TRUE)$p.value,
+                                                      mean.diff = as.numeric(t.test(effectBC.x, effectBC.y, paired = TRUE)$estimate)) %>%
+    ungroup()
+  dfpval_Ibru_Idel$pval.adj <- p.adjust(dfpval_Ibru_Idel$pval, method = "BH")
+  dfsig_Ibru_Idel <- filter(dfpval_Ibru_Idel, pval.adj < alpha)
+  dfsig_Ibru_Idel
+```
+
+Plot significant ones
+```{r curves_Ibru_vs_Idel}
+drsB <- unique(dfsig_Ibru_Idel$BDrugName)
+df4plot <- filter(df_Ibru_Idel, BDrugName %in% drsB) %>% 
+  gather(key = "CDrug", value ="effectBC", c("effectBC.x", "effectBC.y")) %>%
+  mutate(CDrug = ifelse(CDrug == "effectBC.x", CDrugName.x, CDrugName.y)) %>%
+  select(BDrugName, BDrugConc, BDrugConcId, effectBC, CDrug)  %>%
+  mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+  mutate(BDrugConc = factor(round(BDrugConc*1000, 0)))
+  
+ggplot(df4plot, aes(x=BDrugConc, y=effectBC, group = CDrug)) + 
+   stat_summary(fun.data = "mean_se", aes(col=CDrug), geom="line", fun.args = list(mult = 2)) +
+  facet_wrap(~BDrugName, ncol=3, scales = "free_x") +
+  stat_summary(fun.data = "mean_se",aes(col=CDrug), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
+  ggpubr::stat_compare_means(method = "t.test", aes(group=CDrug, x=BDrugConc, label =  ..p.signif..), hide.ns = TRUE, paired=TRUE, label.y = 1.2) +
+    guides(col = guide_legend(title="Combination\n compound"))+ xlab("Concentration (nM)") +ylab("viability")+theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1)) + ylim(c(0,1.4))
+```
+
+## Overall
+```{r}
+plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_joint") 
+```
+
+```{r}
+plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="boxplot_joint") 
+```
+
 ```{r Ibru100vsIdel, fig.height=10.5, fig.width=10}
 plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_factBDrug") + guides(col=FALSE)
 ```
@@ -107,7 +156,7 @@ plotComparsionCDrugs(filter(df4ana, PatientID %in% UCLLpat),
                      type="scatter_factBDrug") +guides(col=FALSE)
 ```
 
-### In combination with Afatinib or Spebrutinib
+## In combination with Afatinib or Spebrutinib
 ```{r IbruvsIdel_inCombis, fig.width=9, fig.height=4}
 df4ana %>% filter(BDrugName %in% c("Afatinib","Spebrutinib"), CDrugAbrv %in% c("Ibrutinib (100nM)", "Idelalisib")) %>% 
   ggplot(aes(x=as.factor(round(BDrugConc*1000,2)), y=effectBC, group = CDrugAbrv)) + 
@@ -223,6 +272,12 @@ df_pvals_combi_vs_muts <- group_by(df_combis_vs_muts, CDrugAbrv, CDrugNameLong, 
 df_pvals_combi_vs_muts$pval.adj <-  p.adjust(df_pvals_combi_vs_muts$pval, method="BH")
 hist(df_pvals_combi_vs_muts$pval)
 ```
+
+```{r}
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(df_pvals_combi_vs_muts, file= paste0(outdir,"/tables/pvalues_mut_Combinations",today,".csv"))
+```
+
 
 ## Volcanoe plot
 FDR cutoff
@@ -343,13 +398,50 @@ stopifnot(sel_combis %in% df_signIGHV$combi)
 plotCombiResponseCurves(df_combis_vs_muts, sel_combis, gene = "IGHV")
 ```
 
+# Test for associaiton to methylation data
+```{r methylation_cluster_combi, fig.height=15, fig.width=10}
+df_combis_vs_meth <- left_join(df4ana, patData, by = "PatientID")
+df_combis_vs_meth %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
 
-<!-- # Meth Cluster -->
-<!-- ```{r} -->
-<!-- df %>% group_by(CDrugAbrv, BDrugName, BDrugConcId) %>% -->
-<!--   dplyr::summarise(pIP = summary(lm(effectBC ~ Methylation_Cluster))$coefficients[2,4], -->
-<!--                    pLP = summary(lm(effectBC ~ Methylation_Cluster))$coefficients[3,4]) -->
-<!-- ``` -->
+# test for effect of methylation cluster (as factor, no orderin implied)
+df_pvals_effBC_vs_meth <- df_combis_vs_meth %>% group_by(CDrugAbrv, BDrugName, BDrugConcId, combi) %>%
+  summarise(nIP = sum(Methylation_Cluster == "IP", na.rm = TRUE),
+            nLP = sum(Methylation_Cluster == "LP", na.rm = TRUE),
+            nHP = sum(Methylation_Cluster == "HP", na.rm = TRUE),
+            pval = ifelse(nIP <3 | nLP <3 | nHP < 3, NA, anova(lm(effectBC ~ Methylation_Cluster))$'Pr(>F)'[1])) %>%
+  filter(!is.na(pval)) %>% ungroup()
+
+# adjust for multiple testing and filter to FDR < alpha
+hist(df_pvals_effBC_vs_meth$pval)
+df_pvals_effBC_vs_meth$pval.adj <- p.adjust(df_pvals_effBC_vs_meth$pval, method = "BH")
+dfsig_effBC_vs_meth <- df_pvals_effBC_vs_meth %>% filter(pval.adj < alpha)
+dfsig_effBC_vs_meth %>% group_by(CDrugAbrv) %>% summarize(nBaseDrugs = length(unique(BDrugName)))
+
+# plot selected combinations
+ # only use one Ibrutinib concentration for plotting and most significant hits (1% FDR)
+sel_combis <- dfsig_effBC_vs_meth %>% filter(CDrugAbrv != "Ibrutinib (10nM)") %>%
+  select(combi)
+
+#plot curves
+df4plot <- df_combis_vs_meth %>% filter(combi %in% sel_combis$combi, !is.na(Methylation_Cluster)) %>% 
+    mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
+    mutate(BDrugConc = factor(round(1000*BDrugConc, 0)))
+  
+  gg <- ggplot(df4plot, aes(x=BDrugConcId, y=effectBC, group=Methylation_Cluster)) +
+    stat_summary(fun.data = "mean_se", aes(col=factor(Methylation_Cluster)), geom="line") +
+    facet_wrap(~combi, ncol=4) +
+    # facet_grid(CDrugName ~ BDrugName) +
+    stat_summary(fun.data = "mean_se",aes(col=factor(Methylation_Cluster)), geom="errorbar", width = 0.2, fun.args = list(mult =2)) +
+    ggpubr::stat_compare_means(method = "t.test", aes(label =  ..p.signif..), hide.ns = TRUE, label.y = 1.3) +
+    guides(col = guide_legend(title="Methylation Cluster")) +
+    xlab("Concentration") + ylab("viability") + theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=1, hjust =1),
+          legend.position = "top") +
+    scale_color_manual(values= c("LP" = "navy", "IP" = "orange", "HP"="darkred")) + ylim(c(0,1.4))
+  
+  gg
+```
 
 #SessionInfo
 ```{r}

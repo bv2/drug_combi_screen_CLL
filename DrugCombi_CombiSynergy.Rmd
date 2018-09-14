@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 #Introduction
 
@@ -134,12 +134,16 @@ dfsynSummaryConc <- group_by(dfsyn, CDrugAbrv, CDrugName, CDrugID, CDrugConc, CD
                     addModelSIse = sd(addModelSI, na.rm =TRUE)/ sqrt(sum(!is.na(addModelSI)))) %>%
   ungroup()
   
-# by median across patients
+# by mean across conc and median across patients 
 dfsynSummaryConcPat <- dfsynSummaryConc %>% 
   group_by(CDrugAbrv, CDrugName, CDrugID, CDrugConc, CDrugNameLong, BDrugName, BDrugID) %>%
   summarize(BlissCImed = median(BlissCImean),
                     hsaCImed = median(hsaCImean),
-                    addModelSImed = median(addModelSImean)) %>%
+                    addModelSImed = median(addModelSImean),
+            n_Bliss_syn = sum(BlissCImean>1),
+            n_SI_syn = sum(addModelSImean >0),
+            n_HSA_syn = sum(hsaCImean >0),
+            n_total = n()) %>%
   ungroup()
 
 # by median across patients
@@ -149,13 +153,6 @@ dfsynSummaryPat <- dfsyn %>%
                     hsaCImed = median(hsaCI, na.rm =TRUE),
                     addModelSImed = median(addModelSI, na.rm =TRUE)) %>%
   ungroup()
-
-# maximum/minimum across concentrations
-dfsynSummaryConcPatMax <- dfsynSummaryPat %>%
-  group_by(CDrugAbrv,BDrugName) %>%
-  summarize(SImax = max(addModelSImed), HSAmax = max(hsaCImed),
-            Simin = min(addModelSImed), HSAmin = min(hsaCImed))
-
 ```
 
 ## SI drug-drug combination
@@ -399,37 +396,40 @@ ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.
   xlab("Mean SI difference")  +facet_wrap(~mutation)
 ```
 
-Exploratory
-```{r}
+## Fluarabine + Ibrutinib
+```{r SI_muts_Fludarabine_Ibru100, fig.width=10, fig.height=3.5}
 # IGHV assoc.
-explSIgen <- function(drB, drC) {
-left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
+plotBoxplotSIMuts <- function(drB, drC, gene = "IGHV") {
+gg <- left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
   filter(BDrugName == drB, CDrugAbrv == drC) %>%
   mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL")) %>%
-ggplot(aes(x=IGHV, y=addModelSI, group=IGHV, fill= IGHV)) +geom_boxplot() + facet_wrap(~BDrugConc, nrow=1) + 
-  ggtitle(paste(drC, drB, sep="+")) + ylab("SI") + ggpubr::stat_compare_means(method = "t.test")
+  mutate(TP53 = ifelse(TP53 == 0, "wt", "mut")) %>%
+  mutate(BDrugConc = factor(round(BDrugConc*1000,0))) %>%
+  ggplot(aes_string(x="BDrugConc", y="addModelSI", fill= gene)) +geom_boxplot(width=0.4) + #facet_wrap(~BDrugConc, nrow=1) + 
+  # ggtitle(paste(drC, drB, sep="+")) +
+  ylab("SI") + 
+  ggpubr::stat_compare_means(aes(label =  paste0("p=",..p.format..)), method = "t.test") +
+  theme_bw(base_size = 14) +
+  theme(strip.background = element_blank(),
+        legend.position = "top",        
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(0,0,-7,0)) + # move legend closer to panel 
+  xlab("Concentration (nM)")
+  
+  if(gene == "IGHV") gg  <- gg + scale_fill_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+  else if(gene == "TP53") gg  <- gg +scale_fill_manual(values= c("wt" = "gray", "mut" = "orange"))
+  gg
 }
 
-gg1 <- explSIgen("Fludarabine","Ibrutinib (100nM)")
-gg2 <- explSIgen("Fludarabine","Ibrutinib (10nM)")
-gg3 <- explSIgen("Afatinib","Ibrutinib (100nM)")
-gg4 <- explSIgen("Afatinib","Ibrutinib (10nM)")
-grid.arrange(gg1,gg2,gg3,gg4, ncol=1)
+gg1 <- plotBoxplotSIMuts("Fludarabine","Ibrutinib (100nM)")
+gg2 <- plotBoxplotSIMuts("Fludarabine","Ibrutinib (100nM)", gene = "TP53")
+grid.arrange(gg1,gg2,ncol=2)
+```
 
-# TP53 assoc.
-explSIgen <- function(drB, drC) {
-left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
-  filter(BDrugName == drB, CDrugAbrv == drC) %>%
-  mutate(TP53 = ifelse(TP53 == 0, "TP53 wt", "TP53 mut")) %>%
-ggplot(aes(x=TP53, y=addModelSI, group=TP53, fill= TP53)) +geom_boxplot() + facet_wrap(~BDrugConc, nrow=1) + 
-  ggtitle(paste(drC, drB, sep="+")) + ylab("SI") + ggpubr::stat_compare_means(method = "t.test")
-}
-
-gg1 <- explSIgen("Fludarabine","Ibrutinib (100nM)")
-gg2 <- explSIgen("Fludarabine","Ibrutinib (10nM)")
-gg3 <- explSIgen("Afatinib","Ibrutinib (100nM)")
-gg4 <- explSIgen("Afatinib","Ibrutinib (10nM)")
-grid.arrange(gg1,gg2,gg3,gg4, ncol=1)
+## Afatinib + Ibrutinib
+```{r SI_muts_Afatinib_Ibru100, fig.width=5, fig.height=3.5}
+gg1 <- plotBoxplotSIMuts("Afatinib","Ibrutinib (100nM)")
+gg1
 ```
 
 # Ibrutinib (100nM) + Navitoclax
@@ -473,9 +473,7 @@ plotWaterfallCI(dfsynSummaryConc, drC = "Ibrutinib (100nM)",
 ```
 
 ```{r}
-dfsynSummaryConc %>% filter(CDrugAbrv =="Ibrutinib (100nM)", BDrugName =="Navitoclax") %>%
-  summarize(nSyn = sum(addModelSImean >0),
-            med =median(addModelSImean))
+dfsynSummaryConcPat %>% filter(CDrugAbrv =="Ibrutinib (100nM)", BDrugName =="Navitoclax") %>% select(n_total, n_SI_syn, addModelSImed)
 ```
 
 ## Scatter
@@ -831,7 +829,14 @@ dfsynSummaryConc %>% filter(CDrugAbrv =="Afatinib", BDrugName =="Ibrutinib") %>%
 
 # Data export
 ```{r}
-save(dfsyn, dfsynSummaryConc, dfsynSummaryConcPat, dfsynSummaryPat, file=paste0("out/MarinaCombiSyns_",today,".RData"))
+save(dfsyn, dfsynSummaryConc, dfsynSummaryConcPat, dfsynSummaryPat, file=paste0(outdir,"/MarinaCombiSyns_",today,".RData"))
+```
+
+```{r}
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(dfsyn, file= paste0(outdir,"/tables/synergy_values_conc_pat_",today,".csv"))
+write.csv(dfsynSummaryConcPat, file= paste0(outdir,"/tables/synergy_values_",today,".csv"))
+write.csv(dfsynSummaryPat, file= paste0(outdir,"/tables/synergy_values_pat_",today,".csv"))
 ```
 
 

@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 
 #Introduction
@@ -197,31 +197,14 @@ for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("10x10PL%0
 df10x10 <- do.call(rbind,listOfTables)
 ```
 
-
-```{r, echo=FALSE}
-# df10x10_old <- read.csv("~/Documents/CLL/MarinaDrugComb/Analysis/ProcessedDataTables/10x10dataframe.csv")
-# df10x10_old %<>% rename(normalizedValue = normalizedValueDMSOControl,
-#                     base_conc = concBaseDrug,
-#                     combi_conc = concCombiDrug)
-# df10x10$WellNo <- as.numeric(df10x10$WellNo)
-# samecols <- intersect(colnames(df10x10), colnames(df10x10_old))
-# 
-# df <- full_join(df10x10_old, df10x10, by=c("CombiDrug", "BaseDrug", "base_conc", "combi_conc", "PatientID", "WellNo", "WellLetter"))
-# all(df$rawValue.x == df$rawValue.y)
-# max(abs(df$normalizedValue.x- df$normalizedValue.y))
-# max(abs(df$pureDMSOMean.x- df$pureDMSOMean.y))
-# max(abs(df$pureDMSOMedian.x- df$pureDMSOMedian.y))
-```
-
 ```{r}
 # use nice drug names
 df10x10 %<>% mutate(BaseDrugName = ifelse(BaseDrug == "CAL101", "Idelalisib", 
                            ifelse(BaseDrug == "Abt199", "Venetoclax",
                                   ifelse(BaseDrug == "ABT263","Navitoclax", BaseDrug))))
-# data overview
-df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
-  summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
 ```
+
+## QC
 Check whether the concentratino in the xls files are plausible: They are different in each experiment, consistent would be 2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0.
 ```{r}
 conc_BCL2 <- sapply(0:9, function(i) 2 * 0.5^i)
@@ -234,6 +217,7 @@ df10x10corr <- mutate(df10x10, concBvalue = ifelse(BaseDrugName %in% c("Afatinib
                                  ifelse(BaseDrugName %in% c("Navitoclax", "Venetoclax"),  conc_BCL2[base_conc], NA)))
 df10x10corr <-mutate(df10x10corr, concCvalue = ifelse(CombiDrug == "Ibrutinib", conc_other[combi_conc], NA))
 ```
+
 Check that concentration values for B are correct (different per patient) in the spreadsheeds. YES
 ```{r, fig.width=10}
 gg1 <- filter(df10x10, concCvalue == 0, CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
@@ -251,15 +235,23 @@ filter(df10x10,  CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
   geom_line() + facet_grid(concCvalue ~BaseDrugName, scales = "free_x")
 ```
 
-Overview
+## Overview
 ```{r}
+# data overview
+df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
+  summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
+
 df10x10 %>% filter(base_conc== "c1") %>%
   group_by(BaseDrugName, concBvalue) %>%
   summarize(nP = length(unique(PatientID)))
 ```
 
+## Data export
 ```{r}
 save(df10x10, file = file.path(outdir, paste0("df10x10_",today,".Rdata")))
+
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(df10x10, file= paste0(outdir,"/tables/10x10_",today,".csv"))
 ```
 
 
@@ -314,161 +306,176 @@ plotTiles10x10(df10x10, "Venetoclax", "P0347")
 plotTiles10x10(df10x10, "Venetoclax", "P0445")
 ```
 
-
-# Isobologram - Analysis
-
-```{r}
-library(BIGL)
-evalIsobols <- FALSE
-```
-
-```{r isobologram_Venetoclax, eval = evalIsobols}
-data <- filter(df10x10, BaseDrugName == "Venetoclax") %>%
-  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
-marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
-summary(marginalFit)
-rs <- fitSurface(data, marginalFit,
-                 null_model = "loewe",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-
-rs <- fitSurface(data, marginalFit,
-                 null_model = "hsa",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-```
-
-```{r isobologram_Navitoclax, eval = evalIsobols}
-data <- filter(df10x10, BaseDrugName == "Navitoclax") %>%
-  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
-marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
-summary(marginalFit)
-rs <- fitSurface(data, marginalFit,
-                 null_model = "loewe",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-
-rs <- fitSurface(data, marginalFit,
-                 null_model = "hsa",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-```
-
-```{r isobologram_Afatinib, eval = evalIsobols}
-data <- filter(df10x10, BaseDrugName == "Afatinib") %>%
-  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
-marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
-summary(marginalFit)
-rs <- fitSurface(data, marginalFit,
-                 null_model = "loewe",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-
-rs <- fitSurface(data, marginalFit,
-                 null_model = "hsa",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-```
-
-```{r isobologram_Idelalisib, eval = evalIsobols}
-data <- filter(df10x10, BaseDrugName == "Idelalisib") %>%
-  select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue)
-marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2"))
-summary(marginalFit)
-rs <- fitSurface(data, marginalFit,
-                 null_model = "loewe",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-
-rs <- fitSurface(data, marginalFit,
-                 null_model = "hsa",
-                 B.CP = 50, statistic = "meanR", parallel = FALSE)
-isobologram(rs)
-summary(rs)
-```
-
-
-# SynergyFinder
+# Assesing synergy using SynergyFinder
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 ```{r}
 library("synergyfinder")
 ```
 
+## Loewe score
 ```{r Loewe_surface, fig.width=10, warning= FALSE}
-plotCITiles(df10x10, "Loewe")
+dfLoewe <- plotCITiles(df10x10, "Loewe")
 ```
 
+## ZIP score
 ```{r ZIP_surface}
-plotCITiles(df10x10, "ZIP")
+dfZIP <- plotCITiles(df10x10, "ZIP")
 ```
 
-Compare to other scores
-```{r score_comparison, fig.height=5}
-Bdrs <- unique(df10x10$BaseDrugName)
-Bdrs  <- Bdrs[Bdrs != "DM"]
-df_scores <- lapply(c("Loewe", "ZIP", "HSA", "Bliss"), function(CI_type) {
- lapply(Bdrs, function(dr){
-    data <- filter(df10x10, BaseDrugName == dr, CombiDrug == "Ibrutinib")
-   lapply(unique(data$PatientID), function(pat){
-     dfpat <- filter(data, PatientID == pat) %>%
-  select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
-         ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
-         Row = base_conc, Col = combi_conc) %>%
-  mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination
-  mutate(Row = sub("c", "", Row),
-         Col = sub("c", "", Col),
-         Response = 100 * Response) # need percentage
-dfpat <- ReshapeData(dfpat, data.type = "viability")
-dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
-synergy.score <- CalculateSynergy(dfpat,method = CI_type, correction = TRUE, Emin = 0, Emax = 100, nan.handle = "LL4")
-data.frame(pat=pat, drB =dr, score = mean(synergy.score$scores[[1]]), method = CI_type)
-   }) %>% bind_rows()
- }) %>% bind_rows()
-}) %>% bind_rows()
+# Quantify Loewe synergy and active viability range 
 
-load("out/MarinaCombiSyns_180905.RData")
-dfEffectBased <- dfsynSummaryConc %>% filter(CDrugAbrv == "Ibrutinib (100nM)") %>%
-  select(BDrugName, addModelSImean, hsaCImean, PatientID)%>%
-  gather(key = "method", value="score", -c("PatientID","BDrugName")) %>% rename(pat = PatientID, drB = BDrugName) %>% filter(pat %in% df_scores$pat, drB %in% df_scores$drB)
-
-df_scores %<>% mutate(method = paste0(method, "_10x10"))
-df4plot <- rbind(df_scores,dfEffectBased)
-df4plot %>% ggplot(aes(x=pat, y=score, fill=pat)) + 
-  facet_grid(method~drB, scales = "free") + geom_bar(stat="identity") + theme(axis.text.x = element_blank()) +guides(fill =F) +scale_fill_manual(values=patcol) +geom_hline(yintercept = 0)
+```{r summary_Navitoclax, fig.height = 8 }
+ggNavi <- plotSummaryLoewe("Navitoclax")
+ggNavi
 ```
 
-
-Other packages: drc, SYNERGY
-```{r, eval = FALSE}
-# fit a durface across all patients with variable tau (RHS in the Loewe additivity model, no synergy =1)
-# only work for synergistic combinations, not practical.
-library(drugCombo)
-drugCombo::checkerboardData
-df <- lapply(c("Afatinib", "Navitoclax", "Venetoclax", "Idelalisib"), function(drB){
- data <- filter(df10x10, BaseDrugName == drB, CombiDrug == "Ibrutinib") %>%
-  select(exp = PatientID, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) 
- print(summary(data$effect))
-# fit <- drugCombo::fitModel(data, model = "separate12")
-fit <- drugCombo::fitModel(data, mono =NULL, model = "uniform")
-taus <- drugCombo::getTauSurface(fit)
-data.frame(taus$data[1,3:6], drB = drB)
-}) %>% bind_rows()
-df
+```{r summary_Afatinib, fig.height = 8 }
+ggAfa <- plotSummaryLoewe("Afatinib")
+ggAfa
 ```
 
+```{r summary_Venetoclax, fig.height = 8 }
+ggVen <- plotSummaryLoewe("Venetoclax")
+ggVen
+```
 
+```{r summary_Idelalisib, fig.height = 8 }
+ggIdel <- plotSummaryLoewe("Idelalisib")
+ggIdel
+```
 
-
+```{r summary_joint, fig.width=10, fig.height=12}
+cowplot::plot_grid(ggNavi, ggAfa, ggVen, ggIdel)
+```
 
 ```{r}
 sessionInfo()
 ```
+
+
+<!-- # Comparison -->
+<!-- Compare to other scores -->
+<!-- ```{r score_comparison, fig.height=5} -->
+<!-- Bdrs <- unique(df10x10$BaseDrugName) -->
+<!-- Bdrs  <- Bdrs[Bdrs != "DM"] -->
+<!-- df_scores <- lapply(c("Loewe", "ZIP", "HSA", "Bliss"), function(CI_type) { -->
+<!--  lapply(Bdrs, function(dr){ -->
+<!--     data <- filter(df10x10, BaseDrugName == dr, CombiDrug == "Ibrutinib") -->
+<!--    lapply(unique(data$PatientID), function(pat){ -->
+<!--      dfpat <- filter(data, PatientID == pat) %>% -->
+<!--   select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug, -->
+<!--          ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue, -->
+<!--          Row = base_conc, Col = combi_conc) %>% -->
+<!--   mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination -->
+<!--   mutate(Row = sub("c", "", Row), -->
+<!--          Col = sub("c", "", Col), -->
+<!--          Response = 100 * Response) # need percentage -->
+<!-- dfpat <- ReshapeData(dfpat, data.type = "viability") -->
+<!-- dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))] -->
+<!-- synergy.score <- CalculateSynergy(dfpat,method = CI_type, correction = TRUE, Emin = 0, Emax = 100, nan.handle = "LL4") -->
+<!-- data.frame(pat=pat, drB =dr, score = mean(synergy.score$scores[[1]]), method = CI_type) -->
+<!--    }) %>% bind_rows() -->
+<!--  }) %>% bind_rows() -->
+<!-- }) %>% bind_rows() -->
+
+<!-- # compare to effect based synergies (needs running CombiSynergy.Rmd first) -->
+<!-- if(file.exists(file.path(outdir, paste0("MarinaCombiSyns_",today,".RData")))){ -->
+<!-- load("out/MarinaCombiSyns_",today,".RData") -->
+<!-- dfEffectBased <- dfsynSummaryConc %>% filter(CDrugAbrv == "Ibrutinib (100nM)") %>% -->
+<!--   select(BDrugName, addModelSImean, hsaCImean, PatientID)%>% -->
+<!--   gather(key = "method", value="score", -c("PatientID","BDrugName")) %>% rename(pat = PatientID, drB = BDrugName) %>% filter(pat %in% df_scores$pat, drB %in% df_scores$drB) -->
+
+<!-- df_scores %<>% mutate(method = paste0(method, "_10x10")) -->
+<!-- df4plot <- rbind(df_scores,dfEffectBased) -->
+<!-- } else df4plot <- df_scores -->
+
+<!-- df4plot %>% ggplot(aes(x=pat, y=score, fill=pat)) +  -->
+<!--   facet_grid(method~drB, scales = "free") + geom_bar(stat="identity") +  -->
+<!--   theme(axis.text.x = element_blank()) + -->
+<!--   guides(fill =F) + scale_fill_manual(values=patcol) +  -->
+<!--   geom_hline(yintercept = 0) -->
+<!-- ``` -->
+
+
+
+<!-- # Isobologram - Analysis -->
+
+<!-- ```{r} -->
+<!-- library(BIGL) -->
+<!-- evalIsobols <- FALSE -->
+<!-- ``` -->
+
+<!-- ```{r isobologram_Venetoclax, eval = evalIsobols} -->
+<!-- data <- filter(df10x10, BaseDrugName == "Venetoclax") %>% -->
+<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
+<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
+<!-- summary(marginalFit) -->
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "loewe", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "hsa", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+<!-- ``` -->
+
+<!-- ```{r isobologram_Navitoclax, eval = evalIsobols} -->
+<!-- data <- filter(df10x10, BaseDrugName == "Navitoclax") %>% -->
+<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
+<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
+<!-- summary(marginalFit) -->
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "loewe", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "hsa", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+<!-- ``` -->
+
+<!-- ```{r isobologram_Afatinib, eval = evalIsobols} -->
+<!-- data <- filter(df10x10, BaseDrugName == "Afatinib") %>% -->
+<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
+<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
+<!-- summary(marginalFit) -->
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "loewe", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "hsa", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+<!-- ``` -->
+
+<!-- ```{r isobologram_Idelalisib, eval = evalIsobols} -->
+<!-- data <- filter(df10x10, BaseDrugName == "Idelalisib") %>% -->
+<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
+<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
+<!-- summary(marginalFit) -->
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "loewe", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+
+<!-- rs <- fitSurface(data, marginalFit, -->
+<!--                  null_model = "hsa", -->
+<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
+<!-- isobologram(rs) -->
+<!-- summary(rs) -->
+<!-- ``` -->
+
 
 

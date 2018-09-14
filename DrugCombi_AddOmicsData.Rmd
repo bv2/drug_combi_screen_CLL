@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 
 #Introduction
@@ -180,6 +180,11 @@ cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb", rel_heights = c(5
 ```{r}
 save(methData, mutData, eData, patData, dfMuts,dfMuts4testing,
      file = file.path(outdir,paste0("OmicsData",today,".RData")))
+```
+
+```{r}
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(dfMuts, file= paste0(outdir,"/tables/genetics_",today,".csv"))
 ```
 
 ```{r}

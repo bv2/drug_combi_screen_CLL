@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180905
+    today: 180914
 ---
 
 #Introduction
@@ -381,6 +381,13 @@ Export Data to be used in further down-stream analyses
 ```{r}
 save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,patcol, filter_th,
      file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
+```
+
+Wrtie dataframe used for further analysis into a csv file
+```{r}
+if(!dir.exists(file.path(outdir, "tables"))) dir.create(file.path(outdir, "tables"))
+write.csv(CompleteDF, file= paste0(outdir,"/tables/viability_values_perplate_",today,".csv"))
+write.csv(df4anaAvreplicatesRmOutliers, file= paste0(outdir,"/tables/combination_values_",today,".csv"))
 ```
 
 ```{r, echo=FALSE, eval=FALSE}
