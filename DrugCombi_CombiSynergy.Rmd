@@ -368,13 +368,15 @@ minOcc <- 3
 
 
 ```{r test_SI}
-dfSI_gen_test <- dfsyn %>%
+# test all drug-drug combinations at concentrations with a significant synergy
+df_SIvsMuts <- left_join(dfsyn, dfsigSI, by = c("BDrugName", "BDrugConcId", "CDrugAbrv"))
+df_SIvsMuts <- df_SIvsMuts %>% filter(pvaladj <= alpha) %>%
   select(BDrugName,BDrugConc, BDrugConcId, CDrugAbrv, addModelSI, PatientID) %>%
   left_join(gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
-dfSI_gen_test %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
+df_SIvsMuts %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
 
 # only inclduing durg-drug combinations with at least 3 samples from mutated and unmutated group
-df_pvals_SI_vs_muts <- group_by(dfSI_gen_test, CDrugAbrv, BDrugName,BDrugConcId, BDrugConc, mutation, combi) %>%
+df_pvals_SI_vs_muts <- group_by(df_SIvsMuts, CDrugAbrv, BDrugName,BDrugConcId, BDrugConc, mutation, combi) %>%
   summarize(n_muts= sum(status==1), n_wt =sum(status==0),
             pval = ifelse(n_muts<minOcc | n_wt<minOcc, NA,t.test(addModelSI ~ status, var.equal= TRUE)$p.value),
             mean.diff = ifelse(n_muts<minOcc | n_wt<minOcc, NA,diff(t.test(addModelSI ~ status, var.equal= TRUE)$estimate))) %>%
@@ -383,6 +385,7 @@ df_pvals_SI_vs_muts$pval.adj <-  p.adjust(df_pvals_SI_vs_muts$pval, method="BH")
 hist(df_pvals_SI_vs_muts$pval)
 
 filter(df_pvals_SI_vs_muts, pval.adj <= alpha)
+filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Venetoclax")
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Fludarabine")
 filter(df_pvals_SI_vs_muts,  CDrugAbrv =="Ibrutinib (100nM)", BDrugName == "Afatinib")
 ```
