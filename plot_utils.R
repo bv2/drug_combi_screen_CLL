@@ -606,6 +606,28 @@ plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
   return(gg)
 }
 
+plotBoxplotSIMuts <- function(drB, drC, gene = "IGHV") {
+  gg <- left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
+    filter(BDrugName == drB, CDrugAbrv == drC) %>%
+    mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL")) %>%
+    mutate(TP53 = ifelse(TP53 == 0, "wt", "mut")) %>%
+    mutate(BDrugConc = factor(round(BDrugConc*1000,0))) %>%
+    ggplot(aes_string(x="BDrugConc", y="addModelSI", fill= gene)) +geom_boxplot(width=0.4) + #facet_wrap(~BDrugConc, nrow=1) + 
+    # ggtitle(paste(drC, drB, sep="+")) +
+    ylab("SI") + 
+    ggpubr::stat_compare_means(aes(label =  paste0("p=",..p.format..)), method = "t.test") +
+    theme_bw(base_size = 14) +
+    theme(strip.background = element_blank(),
+          legend.position = "top",        
+          legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-7,0)) + # move legend closer to panel 
+    xlab("Concentration (nM)")
+  
+  if(gene == "IGHV") gg  <- gg + scale_fill_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
+  else if(gene == "TP53") gg  <- gg +scale_fill_manual(values= c("wt" = "gray", "mut" = "orange"))
+  gg
+}
+
 #############################
 # 10x10 screens
 #############################

@@ -248,7 +248,7 @@ callbackIGHV = function(hc, mat){
 }
 
  pheatmap(effectB_mat, na_col="gray", clustering_distance_rows="euclidean",
-         clustering_distance_cols = "euclidean",
+         clustering_distance_cols = "correlation",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = FALSE,
          treeheight_row = 10, treeheight_col = 10,
@@ -278,7 +278,7 @@ anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
 names(anno_colors) <- colnames(dfanno)
 
  pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="euclidean",
-         clustering_distance_cols = "euclidean",
+         clustering_distance_cols = "correlation",
          color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
          breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
          treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,

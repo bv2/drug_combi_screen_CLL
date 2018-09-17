@@ -402,28 +402,6 @@ ggplot(df_pvals_SI_vs_muts, aes(x = mean.diff, y = -log10(pval.adj), col = mean.
 ## Fluarabine + Ibrutinib
 ```{r SI_muts_Fludarabine_Ibru100, fig.width=10, fig.height=3.5}
 # IGHV assoc.
-plotBoxplotSIMuts <- function(drB, drC, gene = "IGHV") {
-gg <- left_join(dfsyn,dfMuts4testing, by = "PatientID") %>%
-  filter(BDrugName == drB, CDrugAbrv == drC) %>%
-  mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL")) %>%
-  mutate(TP53 = ifelse(TP53 == 0, "wt", "mut")) %>%
-  mutate(BDrugConc = factor(round(BDrugConc*1000,0))) %>%
-  ggplot(aes_string(x="BDrugConc", y="addModelSI", fill= gene)) +geom_boxplot(width=0.4) + #facet_wrap(~BDrugConc, nrow=1) + 
-  # ggtitle(paste(drC, drB, sep="+")) +
-  ylab("SI") + 
-  ggpubr::stat_compare_means(aes(label =  paste0("p=",..p.format..)), method = "t.test") +
-  theme_bw(base_size = 14) +
-  theme(strip.background = element_blank(),
-        legend.position = "top",        
-        legend.margin=margin(0,0,0,0),
-        legend.box.margin=margin(0,0,-7,0)) + # move legend closer to panel 
-  xlab("Concentration (nM)")
-  
-  if(gene == "IGHV") gg  <- gg + scale_fill_manual(values= c("M-CLL" = "red", "U-CLL" = "blue"))
-  else if(gene == "TP53") gg  <- gg +scale_fill_manual(values= c("wt" = "gray", "mut" = "orange"))
-  gg
-}
-
 gg1 <- plotBoxplotSIMuts("Fludarabine","Ibrutinib (100nM)")
 gg2 <- plotBoxplotSIMuts("Fludarabine","Ibrutinib (100nM)", gene = "TP53")
 grid.arrange(gg1,gg2,ncol=2)
@@ -434,6 +412,18 @@ grid.arrange(gg1,gg2,ncol=2)
 gg1 <- plotBoxplotSIMuts("Afatinib","Ibrutinib (100nM)")
 gg1
 ```
+
+##BCL2i
+```{r Muts_BCL2i}
+cowplot::plot_grid(
+  plotBoxplotSIMuts("Navitoclax","Ibrutinib (100nM)", gene = "IGHV") +ggtitle("Ibrutinib (100nM) + Navitoclax"),
+plotBoxplotSIMuts("Navitoclax","Ibrutinib (100nM)", gene = "TP53") +ggtitle("Ibrutinib (100nM) + Navitoclax"),
+plotBoxplotSIMuts("Venetoclax","Ibrutinib (100nM)", gene = "IGHV") +ggtitle("Ibrutinib (100nM) + Venetoclax"),
+plotBoxplotSIMuts("Venetoclax","Ibrutinib (100nM)", gene = "TP53") +ggtitle("Ibrutinib (100nM) + Venetoclax"))
+```
+
+
+
 
 # Ibrutinib (100nM) + Navitoclax
 Values
