@@ -58,7 +58,7 @@ datadir10x10 <- file.path(datadir,"10x10")
 ```
 
 
-# Get plate eet-up
+# Get plate set-up
 From Prtocol get set-up of the plate (i.e. which substance in which concentration in which well)
 ```{r}
 FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2))
@@ -324,18 +324,18 @@ dfZIP <- plotCITiles(df10x10, "ZIP")
 
 # Quantify Loewe synergy and active viability range 
 
-```{r summary_Navitoclax, fig.height = 8 }
-ggNavi <- plotSummaryLoewe("Navitoclax")
+```{r summary_Navitoclax, fig.width = 10 }
+ggNavi <- plotSummaryLoewe("Navitoclax", type = "row")
 ggNavi
 ```
 
-```{r summary_Afatinib, fig.height = 8 }
-ggAfa <- plotSummaryLoewe("Afatinib")
+```{r summary_Afatinib, fig.width = 10 }
+ggAfa <- plotSummaryLoewe("Afatinib", type ="row")
 ggAfa
 ```
 
-```{r summary_Venetoclax, fig.height = 8 }
-ggVen <- plotSummaryLoewe("Venetoclax")
+```{r summary_Venetoclax, fig.width = 10 }
+ggVen <- plotSummaryLoewe("Venetoclax", type ="row")
 ggVen
 ```
 
