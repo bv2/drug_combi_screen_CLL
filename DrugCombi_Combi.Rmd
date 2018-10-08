@@ -129,11 +129,11 @@ ggplot(df4plot, aes(x=BDrugConc, y=effectBC, group = CDrug)) +
 ```
 
 ## Overall
-```{r}
+```{r IbruIdea_Overall_scatter}
 plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="scatter_joint") 
 ```
 
-```{r}
+```{r IbruIdea_Overall_box}
 plotComparsionCDrugs(df4ana, "Ibrutinib (100nM)", "Idelalisib", type="boxplot_joint") 
 ```
 
@@ -309,7 +309,7 @@ ggplot(df4plot, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
   scale_color_manual(values= c("deeppink", "navy")) +
   facet_wrap(CDrugAbrv~mutation, ncol=2)+ guides(col=FALSE) +
   theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
-  xlab("Mean viability difference") 
+  xlab("Viability effect") 
 ```
 
 Alterntive layout with TP53 and IGHV

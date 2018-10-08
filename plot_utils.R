@@ -390,7 +390,9 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
     mutate(type = ifelse(type == "viabB", paste(drB, "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
                                 ifelse(type == "viabBC", paste(drB, "+", drC, "(AB)"),
-                                       "Independent effect (A*B)"))))
+                                       "Expected effect (A*B)")))) %>%
+    mutate(type = factor(type, levels = c(paste(drB, "(A)"), paste(drC, "(B)"),  paste(drB, "+", drC, "(AB)"), "Expected effect (A*B)")))
+  
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   df4plot %<>% mutate(TP53 = ifelse(TP53 == 0, "TP53-wt", "TP53-mut"))
@@ -406,15 +408,19 @@ plotResponseCurves <- function(df, drC , drB, th = filter_th, CItype = "SI",
     select(BDrugConcId, pval)
   df4plot %<>% left_join(dfannop, by = "BDrugConcId")
   
-  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
+  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,1)))
   
-  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
+  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col = type, group=type, linetype = type)) +
     stat_summary(fun.data = "mean_se", fun.args = list(mult = 2), geom="errorbar", width=0.05) +
     stat_summary(fun.y = "mean", geom="line", fun.args = list(mult = 2)) + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration of ", drB, " (nM)")) +
-    theme(legend.position = "top") + 
-    guides(col = guide_legend(title="", ncol=1)) + ylim(c(0,th))
-  
+    theme(legend.position = "top", legend.title = element_blank()) + 
+    guides(col = guide_legend(ncol=1), linetype = guide_legend(ncol=1)) +
+    #guides(col = guide_legend(title="", ncol=1)) +
+    ylim(c(0,th)) +
+    scale_color_manual(values =  brewer.pal(name ="Set1",9)[c(2,3,5,4)]) + 
+    scale_linetype_manual(values = c(rep("solid", 3), "dashed"))
+
   if(sep_by_IGHV & !sep_by_TP53){
     gg <- gg + facet_wrap(~IGHV)
   } else if(!sep_by_IGHV & sep_by_TP53){
@@ -450,7 +456,9 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
     mutate(type = ifelse(type == "viabB", paste("Base compound", "(A)"),
                          ifelse(type == "viabC", paste(drC, "(B)"),
                                 ifelse(type == "viabBC", paste("Base compound", "+", drC, "(AB)"),
-                                       "Independent effect (A*B)"))))
+                                       "Expected effect (A*B)")))) %>%
+    mutate(type = factor(type, levels = c(paste("Base compound", "(A)"), paste(drC, "(B)"),  paste("Base compound", "+", drC, "(AB)"), "Expected effect (A*B)")))
+  
   df4plot <- left_join(df4plot, dfMuts4testing, by ="PatientID")
   df4plot %<>% mutate(IGHV = ifelse(IGHV == 0, "U-CLL", "M-CLL"))
   
@@ -459,16 +467,19 @@ plotMultipleBResponseCurves <- function(df, drC , drsB, th = filter_th, annoSI =
     select(BDrugConcId, addModelSImed, BDrugName)
   df4plot %<>% left_join(dfanno, by = c("BDrugConcId", "BDrugName"))
   df4plot %<>% mutate(BDrugName = factor(BDrugName, levels =drsB)) #keep order as specified
-  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
+  df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,1)))
   
-  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type)) +
+  gg <- ggplot(data=df4plot, aes(x=BDrugConc, y=viability, col =type, group=type, linetype =type)) +
     stat_summary(fun.data = "mean_se", fun.args = list(mult = 2), geom="errorbar", width=0.15) +
     stat_summary(fun.y = "mean", geom="line") + 
     theme_bw(base_size = 20) + xlab(paste0("Concentration (nM)")) +
     guides(col = guide_legend(title="")) + ylim(c(0,th)) +
-    facet_wrap(~ BDrugName, ncol = 4) +theme(legend.position = "top") +
-    guides(col=guide_legend(nrow=2,byrow=TRUE, title = "")) +
-    theme(strip.background = element_blank())
+    facet_wrap(~ BDrugName, ncol = 4) +theme(legend.position = "top", legend.title = element_blank(), legend.spacing.x = unit(0.4, 'cm')) +
+    theme(strip.background = element_blank()) +
+    guides(col = guide_legend(ncol=2), linetype = guide_legend(ncol=2)) +
+    #guides(col = guide_legend(title="", ncol=1)) +
+    scale_color_manual(values =  brewer.pal(name ="Set1",9)[c(2,3,5,4)]) + 
+    scale_linetype_manual(values = c(rep("solid", 3), "dashed"))
   
   if(annoSI){
     gg <- gg + geom_text(aes(x = BDrugConc, label = round(addModelSImed,2)), y=1.3, col="black", size=5)
@@ -529,7 +540,7 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"),
 
   gg <- ggplot(df4plot, aes(x=PatientID, y=CI, fill=PatientID)) +
     geom_bar(stat="identity") + 
-    geom_errorbar(aes(ymin = CI - CIse, ymax = CI + CIse), width = 0.3)+
+    # geom_errorbar(aes(ymin = CI - CIse, ymax = CI + CIse), width = 0.3)+
     geom_hline(yintercept = ifelse(CI_type =="SI",0,1), lty = "dashed") +
     theme_bw(base_size = 15)  + xlab(paste0("Patient sample")) +
     ylab(paste0("Combination index (", CI_type, ")")) + 
@@ -540,18 +551,18 @@ plotWaterfallCI <-  function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI"),
   
   # annotate by genetic features
   if(!is.null(annotate)){
-    gg <- gg + ylim(c(min(df4plot$CI - df4plot$CIse), max(df4plot$CI + df4plot$CIse) +0.04))
+    gg <- gg + ylim(c(min(df4plot$CI), max(df4plot$CI) +0.04))
     if("IGHV" %in% annotate){
-    gg <- gg + geom_text(aes(y = max(df4plot$CI + df4plot$CIse) +0.01, label = ifelse(IGHV==1, "*", "")), size=5)
+    gg <- gg + geom_text(aes(y = max(df4plot$CI) +0.01, label = ifelse(IGHV==1, "*", "")),col="red", size=5)
     gg <- gg + geom_text(x=nrow(df4plot)-10, y= min(df4plot$CI), label = "* M-CLL", col="red", size=5)
     }
     if("TP53" %in% annotate){
-    gg <- gg + geom_text(aes(y = max(df4plot$CI + df4plot$CIse) +0.03, label = ifelse(TP53==1, "*", "")), col="red", size=5)
-    gg <- gg + geom_text(x=nrow(df4plot)-3, y= min(df4plot$CI), label = "* TP53 mut", col="orange", size=5)
+    gg <- gg + geom_text(aes(y = max(df4plot$CI) +0.03, label = ifelse(TP53==1, "*", "")), col="black", size=5)
+    gg <- gg + geom_text(x=nrow(df4plot)-3, y= min(df4plot$CI), label = "* TP53 mut", col="black", size=5)
     }
   }
   
-  gg  <- gg + geom_text(y= max(df4plot$CI + df4plot$CIse)- y_nudge,
+  gg  <- gg + geom_text(y= max(df4plot$CI)- y_nudge,
                         aes(label = ifelse(PatientID %in% pats2label, as.character(PatientID), "")),
                         angle = 90, size = label_size)
   return(gg)
@@ -562,19 +573,20 @@ plotScattter <- function(df, drB, drC, th = filter_th){
   
   df4plot <- filter(df, BDrugName==drB)
   range = c(0, th)
-
+  df4plot %<>% mutate(label = factor(paste0(round(BDrugConc * 1000,1), " (nM)"),
+                                     levels = paste0(sort(unique(round(BDrugConc * 1000,1))), " (nM)")))
   gg <- ggplot(df4plot, aes(x=viabBC_add, y=viabBC, color=PatientID))+
     geom_point(alpha=0.7)+
     geom_hline(aes(yintercept=1), colour="grey", linetype="dashed") +
     geom_vline(aes(xintercept=1), colour="grey", linetype="dashed") +
-    scale_color_manual(values=patcol)+facet_wrap(~BDrugConcId  , ncol=5) +
+    scale_color_manual(values=patcol)+facet_wrap(~ label  , ncol=5) +
     geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
     # ggtitle(paste("Base drug (A):", drB, "\n Combination drug (B):", drC)) +
     coord_fixed() + scale_x_continuous(limits=range) + 
     scale_y_continuous( limits=range) +
-    theme_bw(base_size = 14) +
-    ylab(paste0("viability (combination)")) +
-    xlab(paste0("viability (", drB,") * viability (", drC, ")")) +
+    theme_bw(base_size = 12) +
+    ylab(paste0("Measured viability")) +
+    xlab(paste0("Expected viability of ", drB," with ", drC)) +
     annotate("text", x=0.8*th, y=0.3, label= "synergy", size=4, alpha=0.4) + 
     guides(col=FALSE)
   

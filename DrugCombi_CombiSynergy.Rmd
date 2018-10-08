@@ -225,9 +225,11 @@ stopifnot(nrow(filter(df4hm,pvaladj <= alpha, addModelSImed<0)) ==0)
 # use ordering from heatmap clustering above
 df4hm$BDrugName <- factor(df4hm$BDrugName, levels = hmSI$tree_row$labels[hmSI$tree_row$order])
 df4hm$CDrugAbrv <- factor(df4hm$CDrugAbrv, levels = hmSI$tree_col$labels[hmSI$tree_col$order])
-ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed, label = ifelse(pvaladj <= alpha, "*", ""))) +
+df4hm %<>% mutate(addModelSImed_pos = pmax(addModelSImed,0))
+
+ggplot(df4hm, aes(x=CDrugAbrv, y= BDrugName, fill =addModelSImed_pos, label = ifelse(pvaladj <= alpha, "*", ""))) +
   geom_tile() + geom_text(nudge_y=-0.2) +
-  scale_fill_gradient2(low="navy", high="darkred", mid = "white", midpoint = 0) +
+  scale_fill_gradient2(low="white", high="darkred", mid = "white", midpoint = 0) +
   theme_bw(base_size = 16) +
   theme(axis.text.x = element_text(angle=60, vjust=1, hjust=1),
         panel.background = element_blank(),
