@@ -751,18 +751,22 @@ plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
   gg_medScore <- ggplot(dfLoewe_dr, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = sumScore)) +
     geom_tile() +
     ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
-    scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+    scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0, breaks = seq(-100,100,20)) +
     theme_bw(base_size = 16) + coord_fixed() +
     theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
           plot.title = element_text(colour =  "black")) +
-    guides(fill = guide_colorbar(title = paste0(summarize_by ,"\n Loewe \n score")))
+    guides(fill = guide_colorbar(title = paste0("Loewe \n score")))
   
   if(type == "row"){
-    gg_medScore <- gg_medScore + theme(legend.position = "top",
+    gg_medScore <- gg_medScore + theme(axis.text.y = element_blank(),
+                                       axis.title.y = element_blank(),
+                                       axis.ticks.y = element_blank(),
+                                       legend.position = "top",
                                        plot.margin = unit(c(0,-1,0,0.5), "cm"),
                                        legend.margin=margin(0,0,0,0),
                                        legend.box.margin=margin(0,0,-7,0))  + 
-      guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1, title = paste0(summarize_by ,"\n Loewe  score")))
+      guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1,
+                                   title = paste0("Loewe  score")))
   }
   
 
@@ -804,17 +808,14 @@ plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
     theme_bw(base_size = 16) + coord_fixed() +
     theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
           plot.title = element_text(colour =  "black"))  + 
-    guides(fill = guide_colorbar(title = paste0(summarize_by ,"\n viability")))
+    guides(fill = guide_colorbar(title = paste0("viability")))
   
   if(type == "row"){
-    gg_medViab <- gg_medViab + theme(axis.text.y = element_blank(),
-                                     axis.title.y = element_blank(),
-                                     axis.ticks.y = element_blank(),
-                                     plot.margin = unit(c(0,0.5,0,-1), "cm"),
+    gg_medViab <- gg_medViab + theme(plot.margin = unit(c(0,0.5,0,-1), "cm"),
                                      legend.position = "top",
                                      legend.margin=margin(0,0,0,0),
                                      legend.box.margin=margin(0,0,-7,0))+
-      guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1, title = paste0(summarize_by ,"\n viability")))
+      guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1, title = paste0("viability")))
   }
   cowplot::plot_grid(gg_medViab, gg_medScore, nrow=ifelse(type == "row",1,2), align = "hv", axis ="lb")
 }
