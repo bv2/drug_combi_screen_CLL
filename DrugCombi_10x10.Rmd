@@ -343,7 +343,7 @@ ggVen
 ```
 
 ```{r summary_Idelalisib, fig.height = 8 }
-ggIdel <- plotSummaryLoewe(dfLoewe = dfLoewe_nocut, "Idelalisib")
+ggIdel <- plotSummaryLoewe(dfLoewe = dfLoewe, "Idelalisib")
 ggIdel
 ```
 
