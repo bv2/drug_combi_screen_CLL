@@ -501,7 +501,7 @@ plotBoxplotCI <- function(df, drC , drB, CI_type = c("Bliss", "hsa", "SI")){
     df4plot$CI <- df4plot$addModelSI
   }
   
-    df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,2)))
+    df4plot %<>% mutate(BDrugConc = factor(round(BDrugConc*1000,1)))
   
     ggplot(df4plot, aes(x=BDrugConc, y=CI)) +
     ggbeeswarm::geom_beeswarm(col = "gray", alpha =0.7) + 
@@ -650,7 +650,7 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     df4plot %<>% rename(viability = normalizedValue)
     df4plot %<>%  select(concCvalue, concBvalue, viability)
     if(type == "tile"){
-    gg <- ggplot(df4plot, aes(x=factor(round(concBvalue*1000,2)), y=factor(round(concCvalue*1000,2)), fill = viability)) +
+    gg <- ggplot(df4plot, aes(x=factor(round(concBvalue*1000,1)), y=factor(round(concCvalue*1000,1)), fill = viability)) +
         geom_tile() + 
         ggtitle(pat) +
         scale_fill_gradient(low = "white",high = "navy", limits=c(0,1.4)) +
@@ -665,7 +665,7 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     return(gg)
     }  
 
-plotCITiles <- function(df, CItype){
+plotCITiles <- function(df, CItype, cutoff = Inf){
   dfres <- data.frame() # replace by lapply, bind_rows
   for(dr in unique(df$BaseDrugName)){
     if(dr!="DM"){
@@ -680,7 +680,7 @@ plotCITiles <- function(df, CItype){
           mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination
           mutate(Row = sub("c", "", Row),
                  Col = sub("c", "", Col),
-                 Response = 100 * Response) # need percentage
+                 Response = pmin(cutoff,100 * Response)) # need percentage
         dfpat <- ReshapeData(dfpat, data.type = "viability") # does not work with multiple replicates
         
         #re-order by concentrations
@@ -694,7 +694,7 @@ plotCITiles <- function(df, CItype){
         # print(paste(dr,":", paste0(unique(dfsynCon$concB), collapse = ", ")))
         # print(paste("Ibrutnib :", paste0(unique(dfsynCon$concC), collapse = ", ")))
         
-        gg <- ggplot(df_score, aes(x = factor(round(concB*1000,2)), y=factor(round(concC*1000,2)), fill = score)) +
+        gg <- ggplot(df_score, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = score)) +
           geom_tile() +
           ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           # ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
@@ -713,14 +713,42 @@ plotCITiles <- function(df, CItype){
 }
 
 
-plotSummaryLoewe <- function(dr, summarize_by = "median", type = "col") {
+plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
   stopifnot(type %in% c("row", "col"))
   
-  dfLoewe_dr<- filter(dfLoewe, BDrugName == dr) %>% group_by(concB, concC) %>% summarize(sumScore = switch(summarize_by,
-                                                                                                           mean  = mean(score),
-                                                                                                           median  = median(score)))
+  dfLoewe_dr <- filter(dfLoewe, BDrugName == dr) 
   
-  gg_medScore <- ggplot(dfLoewe_dr, aes(x = factor(round(concB*1000,2)), y=factor(round(concC*1000,2)), fill = sumScore)) +
+  orderConc <- as.numeric(factor(rank(dfLoewe_dr$concB)))
+  dfLoewe_dr$concBrank <- as.numeric(orderConc)
+  orderConcC <- as.numeric(factor(rank(dfLoewe_dr$concC)))
+  dfLoewe_dr$concCrank <- as.numeric(orderConcC)
+  # smooth along B and C concentrations
+  dfLoewe_dr$sumScore <- sapply(1:nrow(dfLoewe_dr), function(i){
+    df <- filter(dfLoewe_dr, abs(concBrank-dfLoewe_dr$concBrank[i])<= 1,
+                 abs(concC - dfLoewe_dr$concC[i])<= 1) # take mean across two neighboring distr in both direction
+    mean(df$score)
+  })
+    
+  
+  # if(length(unique(dfLoewe_dr$concB)) < 15){
+  #   dfLoewe_dr %<>% group_by(concB, concC) %>%
+  #     summarize(sumScore = switch(summarize_by,
+  #                                mean  = mean(score),
+  #                                median  = median(score)))
+  # } else {
+  #   orderConc <- as.numeric(factor(rank(dfLoewe_dr$concB)))
+  #   dfLoewe_dr$concBrank <- as.numeric(orderConc)
+  #   orderConcC <- as.numeric(factor(rank(dfLoewe_dr$concC)))
+  #   dfLoewe_dr$concCrank <- as.numeric(orderConcC)
+  #   # smooth along B concentration to reconcile different conc from pats
+  #   dfLoewe_dr$sumScore <- sapply(1:nrow(dfLoewe_dr), function(i){
+  #     df <- filter(dfLoewe_dr, abs(concBrank-dfLoewe_dr$concBrank[i])<= 2,
+  #                  concC == dfLoewe_dr$concC[i]) # take mean across two neighboring distr in both direction
+  #     mean(df$score)
+  #   })
+  # }
+  
+  gg_medScore <- ggplot(dfLoewe_dr, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = sumScore)) +
     geom_tile() +
     ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
     scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
@@ -737,11 +765,39 @@ plotSummaryLoewe <- function(dr, summarize_by = "median", type = "col") {
       guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1, title = paste0(summarize_by ,"\n Loewe  score")))
   }
   
+
+  df10x10_dr <- filter(df10x10, BaseDrugName == dr, CombiDrug== "Ibrutinib")
   
-  df10x10_dr<- filter(df10x10, BaseDrugName == dr) %>% group_by(concBvalue, concCvalue) %>% summarize(sumViab = switch(summarize_by,
-                                                                                                                       mean  = mean(normalizedValue),
-                                                                                                                       median  = median(normalizedValue)))
-  gg_medViab <- ggplot(df10x10_dr, aes(x = factor(round(concBvalue*1000,2)), y=factor(round(concCvalue*1000,2)), fill = sumViab)) +
+  orderConc <- as.numeric(factor(rank(df10x10_dr$concBvalue)))
+  df10x10_dr$concBrank <- as.numeric(orderConc)
+  orderConcC <- as.numeric(factor(rank(df10x10_dr$concCvalue)))
+  df10x10_dr$concCrank <- as.numeric(orderConcC)
+  # smooth along B concentration to reconcile different conc from pats
+  df10x10_dr$sumViab <- sapply(1:nrow(df10x10_dr), function(i){
+    df <- filter(df10x10_dr, abs(concBrank-df10x10_dr$concBrank[i])<= 1,
+                 abs(concCvalue - df10x10_dr$concCvalue[i]) <=1) # take mean across two neighboring distr
+    mean(df$normalizedValue)
+  })
+    
+  # if(length(unique(df10x10_dr$concBvalue)) < 15){
+  #   df10x10_dr %<>% group_by(concBvalue, concCvalue) %>%
+  #   summarize(sumViab = switch(summarize_by,
+  #                              mean  = mean(normalizedValue),
+  #                              median  = median(normalizedValue)))
+  # } else {
+  # orderConc <- as.numeric(factor(rank(df10x10_dr$concBvalue)))
+  # df10x10_dr$concBrank <- as.numeric(orderConc)
+  # orderConcC <- as.numeric(factor(rank(df10x10_dr$concCvalue)))
+  # df10x10_dr$concCrank <- as.numeric(orderConcC)
+  # # smooth along B concentration to reconcile different conc from pats
+  # df10x10_dr$sumViab <- sapply(1:nrow(df10x10_dr), function(i){
+  #   df <- filter(df10x10_dr, abs(concBrank-df10x10_dr$concBrank[i])<= 2,
+  #                concCvalue == df10x10_dr$concCvalue[i]) # take mean across two neighboring distr
+  #   mean(df$normalizedValue)
+  # })
+# }
+  
+  gg_medViab <- ggplot(df10x10_dr, aes(x = factor(round(concBvalue*1000,1)), y=factor(round(concCvalue*1000,1)), fill = sumViab)) +
     geom_tile() +
     ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
     scale_fill_gradient(low = "white",high = "navy", limits=c(0,1.4)) +
@@ -760,5 +816,5 @@ plotSummaryLoewe <- function(dr, summarize_by = "median", type = "col") {
                                      legend.box.margin=margin(0,0,-7,0))+
       guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1, title = paste0(summarize_by ,"\n viability")))
   }
-  cowplot::plot_grid(gg_medScore, gg_medViab, nrow=ifelse(type == "row",1,2), align = "hv", axis ="lb")
+  cowplot::plot_grid(gg_medViab, gg_medScore, nrow=ifelse(type == "row",1,2), align = "hv", axis ="lb")
 }
