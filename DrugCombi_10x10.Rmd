@@ -314,8 +314,10 @@ library("synergyfinder")
 
 ## Loewe score
 ```{r Loewe_surface, fig.width=10, warning= FALSE}
-dfLoewe <- plotCITiles(filter( df10x10, BaseDrugName != "Idelalisib"), "Loewe", cutoff = 100)
-dfLoewe_nocut <- plotCITiles(filter( df10x10, BaseDrugName == "Idelalisib"), "Loewe")
+dfLoewe <- plotCITiles(df10x10, "Loewe")
+# no major changes:
+# dfLoewe <- plotCITiles(filter( df10x10, BaseDrugName != "Idelalisib"), "Loewe", cutoff = 100)
+# dfLoewe_nocut <- plotCITiles(filter( df10x10, BaseDrugName == "Idelalisib"), "Loewe")
 ```
 
 ## ZIP score
@@ -326,7 +328,7 @@ dfZIP <- plotCITiles(df10x10, "ZIP")
 # Quantify Loewe synergy and active viability range 
 
 ```{r summary_Navitoclax, fig.width = 10 }
-ggNavi <- plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
+ggNavi <- plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
 ggNavi
 ```
 
