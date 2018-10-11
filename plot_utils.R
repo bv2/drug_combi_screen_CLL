@@ -665,7 +665,7 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     return(gg)
     }  
 
-plotCITiles <- function(df, CItype, cutoff = 100){
+plotCITiles <- function(df, CItype, cutoff = Inf){
   dfres <- data.frame() # replace by lapply, bind_rows
   for(dr in unique(df$BaseDrugName)){
     if(dr!="DM"){
