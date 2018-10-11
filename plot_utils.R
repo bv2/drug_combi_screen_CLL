@@ -665,7 +665,7 @@ plotTiles10x10 <- function(df, drB, pat, type = c("tile", "contour")){
     return(gg)
     }  
 
-plotCITiles <- function(df, CItype, cutoff = Inf){
+plotCITiles <- function(df, CItype, cutoff = 100){
   dfres <- data.frame() # replace by lapply, bind_rows
   for(dr in unique(df$BaseDrugName)){
     if(dr!="DM"){
@@ -674,6 +674,8 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
       for(pat in unique(data$PatientID)){
         print(pat)
         dfpat <- filter(data, PatientID == pat) %>%
+                mutate(base_conc = factor(base_conc, levels = paste0("c",1:10)),
+                       combi_conc = factor(combi_conc, levels = paste0("c",1:10))) %>%
           select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug,
                  ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue,
                  Row = base_conc, Col = combi_conc) %>%
@@ -683,13 +685,19 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
                  Response = pmin(cutoff,100 * Response)) # need percentage
         dfpat <- ReshapeData(dfpat, data.type = "viability") # does not work with multiple replicates
         
-        #re-order by concentrations
+        #re-order by concentrations (in ReshapeData ordered as charatcers 1, 10,2,...)
         dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
         # print(PlotDoseResponse(dfpat))
         
-        synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE, Emin = 0, Emax = 100)
+        if(CItype != "myLoewe"){
+        synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE)
         df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
           filter(concB !=0 & concC!=0)
+        } else {
+        synergy.score <- myLoewe(dfpat$dose.response.mats[[1]])
+        df_score <- melt(synergy.score$scores, varnames = c("concB", "concC"), value.name = "score") %>%
+          filter(concB !=0 & concC!=0)
+        }
         # dfsynCon <- filter(df_score, score>0) %>% select(concB,concC)
         # print(paste(dr,":", paste0(unique(dfsynCon$concB), collapse = ", ")))
         # print(paste("Ibrutnib :", paste0(unique(dfsynCon$concC), collapse = ", ")))
@@ -704,7 +712,7 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
                 plot.title = element_text(colour =  "black"))
         print(gg)
-        # myPlotSynergy(synergy.score, type = "2D", save.file = TRUE, file.name = paste0(figdir,dr, pat,".pdf"), pat=pat)
+        # PlotSynergy(synergy.score, type = "2D", save.file = TRUE)
         dfres <- rbind(dfres,cbind(df_score, PatientID = pat, BDrugName = dr, CDrugName = "Ibrutinib"))
       }
     }
@@ -726,7 +734,7 @@ plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
   dfLoewe_dr$sumScore <- sapply(1:nrow(dfLoewe_dr), function(i){
     df <- filter(dfLoewe_dr, abs(concBrank-dfLoewe_dr$concBrank[i])<= 1,
                  abs(concC - dfLoewe_dr$concC[i])<= 1) # take mean across two neighboring distr in both direction
-    mean(df$score)
+    mean(df$score, na.rm=TRUE)
   })
     
   

@@ -312,12 +312,28 @@ https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 library("synergyfinder")
 ```
 
+```{r}
+ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~concCvalue) +scale_x_log10() 
+
+ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() 
+```
+
+
+
 ## Loewe score
 ```{r Loewe_surface, fig.width=10, warning= FALSE}
 dfLoewe <- plotCITiles(df10x10, "Loewe")
-# no major changes:
-# dfLoewe <- plotCITiles(filter( df10x10, BaseDrugName != "Idelalisib"), "Loewe", cutoff = 100)
-# dfLoewe_nocut <- plotCITiles(filter( df10x10, BaseDrugName == "Idelalisib"), "Loewe")
+```
+
+Notes: Changinng the concentration of Navitoclax by a factor of 10 leads to a different Loewe synergy, the ZIP index remains the same. Dose response curves and matrices as obtained from PlotDoseResponse are not affected  by the change.
+This is due to calculating the synergy as response - maximal response on sum of both concentration in one of the two single fits, if the Loewe equation cannot be colved. MyLoewe takes for these cases  NA. For details see synergyfinder_problems1/2. (altenrative: the clostest value in 0 to 100 to fulfil this equation, can produce high synergy at high concentrations, where effect is clost to 100)
+```{r myLoewe_surface}
+source("~/Documents/CLL/MarinaDrugComb/DrugCombi_Code4Ms/myLoewe.R")
+dfmyLoewe <- plotCITiles(df10x10, "myLoewe")
 ```
 
 ## ZIP score
@@ -326,35 +342,86 @@ dfZIP <- plotCITiles(df10x10, "ZIP")
 ```
 
 # Quantify Loewe synergy and active viability range 
-
-```{r summary_Navitoclax, fig.width = 10 }
+```{r summary_Navitoclax_Loewe, fig.width = 10 }
+# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
 ggNavi <- plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
 ggNavi
 ```
 
-```{r summary_Afatinib, fig.width = 10 }
+```{r summary_Navitoclax_myLoewe, fig.width = 10 }
+# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
+ggNavi <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Navitoclax", type = "row")
+ggNavi
+```
+
+```{r summary_Navitoclax_ZIP, fig.width = 10 }
+# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
+ggNavi <- plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
+ggNavi
+```
+
+```{r summary_Afatinib_Loewe, fig.width = 10 }
 ggAfa <- plotSummaryLoewe(dfLoewe = dfLoewe, "Afatinib", type ="row")
 ggAfa
 ```
+```{r summary_Afatinib_myLoewe, fig.width = 10 }
+ggAfa <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Afatinib", type ="row")
+ggAfa
+```
+```{r summary_Afatinib_ZIP, fig.width = 10 }
+ggAfa <- plotSummaryLoewe(dfLoewe = dfZIP, "Afatinib", type ="row")
+ggAfa
+```
 
-```{r summary_Venetoclax, fig.width = 10 }
+```{r summary_Venetoclax_Loewe, fig.width = 10 }
 ggVen <- plotSummaryLoewe(dfLoewe = dfLoewe, "Venetoclax", type ="row")
 ggVen
 ```
+```{r summary_Venetoclax_myLoewe, fig.width = 10 }
+ggVen <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Venetoclax", type ="row")
+ggVen
+```
+```{r summary_Venetoclax_ZIP, fig.width = 10 }
+ggVen <- plotSummaryLoewe(dfLoewe = dfZIP, "Venetoclax", type ="row")
+ggVen
+```
 
-```{r summary_Idelalisib, fig.height = 8 }
+```{r summary_Idelalisib_Loewe, fig.height = 8 }
 ggIdel <- plotSummaryLoewe(dfLoewe = dfLoewe, "Idelalisib")
 ggIdel
 ```
-
-```{r summary_joint, fig.width=10, fig.height=12}
-cowplot::plot_grid(ggNavi, ggAfa, ggVen, ggIdel)
+```{r summary_Idelalisib_myLoewe, fig.height = 8 }
+ggIdel <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Idelalisib")
+ggIdel
 ```
+```{r summary_Idelalisib_ZIP, fig.height = 8 }
+ggIdel <- plotSummaryLoewe(dfLoewe = dfZIP, "Idelalisib")
+ggIdel
+```
+
 
 ```{r}
 sessionInfo()
 ```
 
+# Understanding scores and strong antagonism
+How to adjust for differences in concentrations? D
+ifferent factors lead to different results. Why?
+```{r}
+df10x10mod <- df10x10
+df10x10mod$concBvalue <- 10*df10x10mod$concBvalue  # makes concentration ranges similar to Ibrutinib for Navitoclax
+dfLoewemod <- plotCITiles(df10x10mod, "Loewe")
+
+plotSummaryLoewe(dfLoewe = dfLoewemod, "Navitoclax", type = "row")
+plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
+```
+
+ZIP model is not influenced by this.
+```{r}
+dfZIPmod <- plotCITiles(df10x10mod, "ZIP")
+plotSummaryLoewe(dfLoewe = dfZIPmod, "Navitoclax", type = "row")
+plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
+```
 
 <!-- # Comparison -->
 <!-- Compare to other scores -->
@@ -402,7 +469,7 @@ sessionInfo()
 
 
 <!-- # Isobologram - Analysis -->
-
+<!-- Alternative to Synergyfinder -->
 <!-- ```{r} -->
 <!-- library(BIGL) -->
 <!-- evalIsobols <- FALSE -->
@@ -427,7 +494,7 @@ sessionInfo()
 <!-- ``` -->
 
 <!-- ```{r isobologram_Navitoclax, eval = evalIsobols} -->
-<!-- data <- filter(df10x10, BaseDrugName == "Navitoclax") %>% -->
+<!-- data <- filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib") %>% -->
 <!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
 <!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
 <!-- summary(marginalFit) -->
