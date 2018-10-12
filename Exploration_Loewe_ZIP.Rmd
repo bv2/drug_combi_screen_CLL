@@ -148,32 +148,38 @@ df$effect_Loewe_nearest <- sapply(1:nrow(df), function(i) solrange[which.min(sap
 Values below 1 indicate synergy. Here I plot the log, i.e. value below 0 indiacte synergy
 ```{r}
 df4plot <- df %>% filter(concBvalue !=0 & concCvalue !=0)
-ggplot(df4plot,aes(x=factor(concBvalue), y = factor(concCvalue), fill = log(CILoewe)))  + geom_tile() +
+ggLoeweCI <- ggplot(df4plot,aes(x=factor(round(concBvalue*1000,1)), y = factor(round(concCvalue*1000,1)), fill = log(CILoewe)))  + geom_tile() +
   ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           scale_fill_gradient2(low= "red", high="blue", mid="white", midpoint = 0) +
-          theme_bw(base_size = 16) + coord_fixed() +
+           coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+ggLoeweCI
 ```
 
 ## Plot expected effect vs measured effect
 Option 1: NA if not solvable
 Values above 0 indicate synergy.
 ```{r}
-ggplot(df4plot, aes(x=factor(concBvalue), y = factor(concCvalue), fill = effect - effect_Loewe))   + geom_tile() +
+ggLoewe_effect <- ggplot(df4plot, aes(x=factor(round(concBvalue*1000,1)), y = factor(round(concCvalue*1000,1)), fill = effect - effect_Loewe))   + geom_tile() +
   ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
-          theme_bw(base_size = 16) + coord_fixed() +
+          coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+ggLoewe_effect
 ```
 
 Option 2: take effect closest to fulfilling the Loewe equation if not solvable
 Values above 0 indicate synergy.
 ```{r}
-ggplot(df4plot, aes(x=factor(concBvalue), y = factor(concCvalue), fill = effect - effect_Loewe_nearest))  + geom_tile() +
+ggLoewe_effect_nearest <- ggplot(df4plot, aes(x=factor(round(concBvalue*1000,1)),
+                    y = factor(round(concCvalue*1000,1)),
+                    fill = effect - effect_Loewe_nearest))  +
+  geom_tile() +
   ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
-          theme_bw(base_size = 16) + coord_fixed() +
+           coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+ggLoewe_effect_nearest
 ```
 
 In synergyfinder concentration pairs where the expected effect under the Loewe model cannot be calculated are replaced by
@@ -204,14 +210,26 @@ Values above 0 indicate synergy.
 ```{r}
 df_score <- melt(ZIPscore, varnames = c("concB", "concC"), value.name = "score") %>%
           filter(concB !=0 & concC!=0)
-ggplot(df_score, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = score)) +
+ggZIP <- ggplot(df_score, aes(x = factor(round(concB*1000,1)),
+                              y=factor(round(concC*1000,1)),
+                              fill = score)) +
           geom_tile() +
           ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
           coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+ggZIP
 ```
 
+
+# Comparison of results
+```{r, fig.width=12, fig.height=12}
+cowplot::plot_grid(ggZIP +ggtitle("ZIP"),
+                   ggLoewe_effect_nearest + ggtitle("Loewe_effect_nearest"),
+                   ggLoewe_effect+ ggtitle("Loewe_effect"),
+                   ggLoeweCI + ggtitle("Loewe_CI"),
+                   ncol=2)
+```
 
 ```{r}
 sessionInfo()
