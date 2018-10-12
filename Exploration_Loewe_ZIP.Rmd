@@ -25,7 +25,10 @@ library(tidyverse)
 load("out/df10x10_180914.Rdata")
 ```
 
-Select one patient and drug as example
+Select one patient and drug as example.
+Problematic are: Afatinib - P0050, Idelalisib - P0050 as no good fit for Ibrutinib or Idelalisib response curve (flat).
+Use a criterion on goodness of fit for single curves to include patient? When not limiting the maximal effect of loglogistic fit to 100, more cases become problematic, e.g. P0016 for Navitoclax.
+
 ```{r}
 pat <- params$pat
 dr <- params$dr
@@ -56,6 +59,9 @@ Emax <- 100 # maximum of loglogistic fit (NA = fit parameter)
 
 # fit a loglogistic curve
 single.fit <- synergyfinder::FittingSingleDrug(response_mat, fixed = c(NA, Emin, Emax, NA))
+
+if(class(single.fit$drug.col.model) != "drc" | class(single.fit$drug.row.model)!= "drc") 
+  stop("Drug response fits did not converge")
 
 if(!is.na(Emax)){
 paramsBaseDrug <- c(single.fit$drug.row.model$fit$par[1], Emin, Emax, single.fit$drug.row.model$fit$par[2])
