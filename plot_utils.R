@@ -707,7 +707,7 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
           ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
           # ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
           ggtitle(pat) +
-          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = ifelse(CItype == "myLoewe",0,0)) +
           theme_bw(base_size = 16) + coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
                 plot.title = element_text(colour =  "black"))

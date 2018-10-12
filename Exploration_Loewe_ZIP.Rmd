@@ -1,0 +1,213 @@
+---
+title: "Exploration of different 10x10 synergies"
+author: "Britta Velten"
+date: "12 October 2018"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+params: 
+    pat: P0369
+    dr: Navitoclax
+---
+
+```{r, echo=F, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(reshape2)
+library(magrittr)
+library(tidyverse)
+```
+
+
+# Load data
+```{r}
+# load("/Volumes/huber/projects/nct/cll/ProcessedData/DrugScreens/Marina_CombiScreen/df10x10_180914.Rdata")
+load("out/df10x10_180914.Rdata")
+```
+
+Select one patient and drug as example
+```{r}
+pat <- params$pat
+dr <- params$dr
+df <- filter(df10x10, BaseDrugName == dr, PatientID == pat, CombiDrug == "Ibrutinib")
+df <- select(df, concBvalue, concCvalue, normalizedValue)
+df %<>% mutate(effect = (1-pmin(1,normalizedValue))*100) # cut off viabilities above 1
+response_mat <- acast(df, concBvalue ~ concCvalue, value.var = 'effect')
+```
+
+# Fit single drug curves
+Loglogistic curve with four parameters (b,c,d,e):
+$$f(x) = c + \frac{d-c}{1 + (\frac{x}{e})^b}$$
+c the intercept at 0, d the plateu for x to infinity, b the slope and e the point of half effect 0.5(Emax+Emin).
+```{r}
+xx <- seq(0,5,0.1)
+llfun <- function(x, params){
+  params[2] + (params[3] - params[2])/(1+(x/params[4])^params[1])
+}
+plot(xx, llfun(xx,params = c(-10,0,60,2)), 'l')
+```
+
+## Fit curves
+Notes: In synergyfinder Emin and Emax are not fixed for Loewe but for ZIP.
+In principle this should be 0 and 100%, values above 100% are not meaningful but some drugs could have plateau less than 100%. For patients, where Ibrutinib has little effect in the concentration range except for the last point (e.g. P0016) the plateau is estimated at to high values (e.g. 10318.404). Set Emin and Emax to 0 and 100? Use non-parametric model?
+```{r}
+Emin <- 0 # minimum of loglogistic fit (NA = fit parameter)
+Emax <- 100 # maximum of loglogistic fit (NA = fit parameter)
+
+# fit a loglogistic curve
+single.fit <- synergyfinder::FittingSingleDrug(response_mat, fixed = c(NA, Emin, Emax, NA))
+
+if(!is.na(Emax)){
+paramsBaseDrug <- c(single.fit$drug.row.model$fit$par[1], Emin, Emax, single.fit$drug.row.model$fit$par[2])
+paramsCombiDrug <- c(single.fit$drug.col.model$fit$par[1], Emin, Emax, single.fit$drug.col.model$fit$par[2])
+} else if(is.na(Emax) & is.na(Emin)){
+paramsBaseDrug <- single.fit$drug.row.model$fit$par
+paramsCombiDrug <- single.fit$drug.col.model$fit$par
+} 
+```
+
+## Plot fits
+```{r}
+par(mfrow = c(1,2))
+xx <- seq(min(as.numeric(colnames(response_mat))), max(as.numeric(colnames(response_mat))), 0.01)
+plot(xx, llfun(xx,params = paramsCombiDrug), 'l', ylim = c(0,100), col="red", ylab = "effect", xlab = "conc", main = "Ibrutinib")
+points(as.numeric(colnames(response_mat))[-1],single.fit$drug.col.fitted)
+points(as.numeric(colnames(response_mat))[-1], response_mat[1,-1], pch=19)
+
+xx <- seq(min(as.numeric(rownames(response_mat))), max(as.numeric(rownames(response_mat))), 0.01)
+plot(xx, llfun(xx,params = paramsBaseDrug), 'l', ylim=c(0,100), col="red", ylab = "effect", xlab = "conc", main = dr)
+points(as.numeric(rownames(response_mat))[-1],single.fit$drug.row.fitted)
+points(as.numeric(rownames(response_mat))[-1], response_mat[-1,1], pch=19)
+```
+
+<!-- Note: In syngergy finder: -->
+<!-- ```{r} -->
+<!-- d1.fun <- function(conc, drug.col.par) { -->
+<!--     (drug.col.par[3] + drug.col.par[2] * (conc/drug.col.par[4])^drug.col.par[1])/(1 +  -->
+<!--                                                                                     (conc/drug.col.par[4])^drug.col.par[1]) -->
+<!-- } -->
+<!-- par(mfrow=c(1,1)) -->
+<!-- plot(xx, d1.fun(xx, paramsBaseDrug), 'l') -->
+<!-- points(xx, llfun(xx,params = paramsBaseDrug)) -->
+<!-- ``` -->
+
+## Inverse function
+To calculate the dose required to achieve a given effect
+```{r}
+combi_fun <- function(effect) {
+    paramsCombiDrug[4] * (((effect - paramsCombiDrug[3])/(paramsCombiDrug[2] - effect))^(1/paramsCombiDrug[1]))
+  }
+base_fun <- function(effect) {
+    paramsBaseDrug[4] * (((effect - paramsBaseDrug[3])/(paramsBaseDrug[2] - effect))^(1/paramsBaseDrug[1]))
+  }
+```
+
+Plot
+```{r}
+par(mfrow = c(1,2))
+xx <- seq(0,100,0.1)
+plot(xx, combi_fun(xx), ylab = "conc", xlab = "effect", 'l', main = "Ibrutinib")
+plot(xx, base_fun(xx), ylab = "conc", xlab = "effect", 'l', col="red", main = dr)
+```
+
+# Loewe index
+A drug combined with itself fulfills
+$$x_B/X_B + x_c/X_C =1 $$
+
+where $x_B$ is the dose of drug B in combination, $x_C$ the dose of drug C in combination and $X_b$, $X_c$ the concentration required to achieve the same effect as the combination with B/C alone.
+Based on this synergy is assessed in the following:
+```{r}
+# Calulcate X_B and X_C from fitted drug curves
+df %<>% mutate(equiv_dose_base_alone = base_fun(effect),
+               equiv_dose_combi_alone = combi_fun(effect))
+
+# calculate LHS as CI (CI<1 synergy)
+df %<>% mutate(CILoewe = concBvalue/equiv_dose_base_alone + concCvalue/equiv_dose_combi_alone) 
+
+ # calulcate which expected effect of combination to fulfil Loewe equality
+listsols <- lapply(1:nrow(df), function(i) nleqslv::nleqslv(max(paramsBaseDrug[2] + 1, paramsCombiDrug[2] + 1), 
+                         function(x) df$concCvalue[i]/combi_fun(x) + df$concBvalue[i]/base_fun(x) -1,
+                         method = "Newton"))
+
+# replace values where this cannot be solved by NA
+df$effect_Loewe <- sapply(listsols, function(l) if(l$termcd == 1) l$x else NA)
+
+# always take the value that is closest to fulfilling the Loewe equation within the effect range 0 to 100%
+solrange <- seq(0,100,0.01)
+df$effect_Loewe_nearest <- sapply(1:nrow(df), function(i) solrange[which.min(sapply(solrange, function(x)
+                          abs(df$concCvalue[i]/combi_fun(x) + df$concBvalue[i]/base_fun(x) -1)))])
+```
+
+## Plot CI
+Values below 1 indicate synergy. Here I plot the log, i.e. value below 0 indiacte synergy
+```{r}
+df4plot <- df %>% filter(concBvalue !=0 & concCvalue !=0)
+ggplot(df4plot,aes(x=factor(concBvalue), y = factor(concCvalue), fill = log(CILoewe)))  + geom_tile() +
+  ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
+          scale_fill_gradient2(low= "red", high="blue", mid="white", midpoint = 0) +
+          theme_bw(base_size = 16) + coord_fixed() +
+          theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+```
+
+## Plot expected effect vs measured effect
+Option 1: NA if not solvable
+Values above 0 indicate synergy.
+```{r}
+ggplot(df4plot, aes(x=factor(concBvalue), y = factor(concCvalue), fill = effect - effect_Loewe))   + geom_tile() +
+  ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+          theme_bw(base_size = 16) + coord_fixed() +
+          theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+```
+
+Option 2: take effect closest to fulfilling the Loewe equation if not solvable
+Values above 0 indicate synergy.
+```{r}
+ggplot(df4plot, aes(x=factor(concBvalue), y = factor(concCvalue), fill = effect - effect_Loewe_nearest))  + geom_tile() +
+  ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+          theme_bw(base_size = 16) + coord_fixed() +
+          theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+```
+
+In synergyfinder concentration pairs where the expected effect under the Loewe model cannot be calculated are replaced by
+$max(f_1(x_1 + x_2), f_2(x_1+x_2))$, where $f_1,f_2$ are the singel drug dose-response fits.
+This can work for cases where single drugs have already reached their maximal value within the conentration range and  the effect of the combination cannot be reached as it it higher. For low concentrations, this is however very misleading as $f(x_1+x_2)$ can be much higher than expected from the concentration as a addition of Ibrutinib in dose $x$ leads to a much lower effect than an addition of Nacitoclax of this dose resulting in strong antagonism. It also makes the method sensitive to the scale on which the concentration is measures, i.e. multiplying the concentration values of Navitoclax by 10 leads to different results.
+
+
+# ZIP Index
+The ZIP Index fits dose response curves for each row and column of the response matrix.
+For each concentration pairs it considers the average effect from the row- and columnwise fit. Here the minimum of the function is given by the fitted values of the other drug alone, maximum is set to 0 (using L.4?). This is compared to the effect expected under the Bliss model from the single drug effect given by the single drug dose response fits (using LL.4?). $E_B +E_C - E_B*E_C/100 = 100*(1- V_B*V_C)$ (E fitted effect values from 0 to 100, V viability form 0 to 1)
+
+```{r}
+ggplot(filter(df),
+       aes(x = (concBvalue), y= normalizedValue)) +
+  geom_point() + facet_wrap(~concCvalue) +scale_x_log10() 
+
+ggplot(filter(df),
+       aes(x = (concCvalue), y= normalizedValue)) +
+  geom_point() + facet_wrap(~concBvalue) +scale_x_log10() 
+
+```
+
+```{r}
+ZIPscore <- synergyfinder::ZIP(response_mat)
+```
+
+Values above 0 indicate synergy.
+```{r}
+df_score <- melt(ZIPscore, varnames = c("concB", "concC"), value.name = "score") %>%
+          filter(concB !=0 & concC!=0)
+ggplot(df_score, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = score)) +
+          geom_tile() +
+          ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
+          coord_fixed() +
+          theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1))
+```
+
+
+```{r}
+sessionInfo()
+```
+

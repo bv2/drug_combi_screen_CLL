@@ -312,6 +312,7 @@ https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
 library("synergyfinder")
 ```
 
+## Single-Dose Response Curves
 ```{r}
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
        aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
@@ -322,6 +323,36 @@ ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() 
 ```
 
+## Dose Response curves of combination drug
+```{r}
+# B drug curves
+ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concCvalue==0),
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
+ggplot(filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concCvalue==0),
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
+ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", concCvalue==0),
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
+```
+
+## Dose Response curves of Ibrutinib
+```{r}
+# C Drug curves
+ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concBvalue==0),
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
+
+ggplot(filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concBvalue==0),
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
+
+ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", concBvalue==0),
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
+```
+The drug curves of Ibrutinib alone are strange and only in the last concentration something happens. Thereby the Loewe synergy cannot be well assessed as no conc with similar effect as Ibrutinib and lowest conc of drug B can be found.
 
 
 ## Loewe score
@@ -331,9 +362,11 @@ dfLoewe <- plotCITiles(df10x10, "Loewe")
 
 Notes: Changinng the concentration of Navitoclax by a factor of 10 leads to a different Loewe synergy, the ZIP index remains the same. Dose response curves and matrices as obtained from PlotDoseResponse are not affected  by the change.
 This is due to calculating the synergy as response - maximal response on sum of both concentration in one of the two single fits, if the Loewe equation cannot be colved. MyLoewe takes for these cases  NA. For details see synergyfinder_problems1/2. (altenrative: the clostest value in 0 to 100 to fulfil this equation, can produce high synergy at high concentrations, where effect is clost to 100)
+
+## Loewe Score with missing parts
 ```{r myLoewe_surface}
 source("~/Documents/CLL/MarinaDrugComb/DrugCombi_Code4Ms/myLoewe.R")
-dfmyLoewe <- plotCITiles(df10x10, "myLoewe")
+dfmyLoewe <- plotCITiles(df10x10, "myLoewe", cutoff = 100)
 ```
 
 ## ZIP score
@@ -341,59 +374,79 @@ dfmyLoewe <- plotCITiles(df10x10, "myLoewe")
 dfZIP <- plotCITiles(df10x10, "ZIP")
 ```
 
-# Quantify Loewe synergy and active viability range 
+# Summarize scores
+## Navitoclax
+### Loewe
 ```{r summary_Navitoclax_Loewe, fig.width = 10 }
 # Strong antagonism for low concentrations? Is ZIP more stable for small effects?
 ggNavi <- plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
 ggNavi
 ```
 
+### Loewe Score with missing parts
 ```{r summary_Navitoclax_myLoewe, fig.width = 10 }
 # Strong antagonism for low concentrations? Is ZIP more stable for small effects?
 ggNavi <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Navitoclax", type = "row")
 ggNavi
 ```
 
+### ZIP score
 ```{r summary_Navitoclax_ZIP, fig.width = 10 }
 # Strong antagonism for low concentrations? Is ZIP more stable for small effects?
 ggNavi <- plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
 ggNavi
 ```
 
+## Afatinib
+### Loewe
 ```{r summary_Afatinib_Loewe, fig.width = 10 }
 ggAfa <- plotSummaryLoewe(dfLoewe = dfLoewe, "Afatinib", type ="row")
 ggAfa
 ```
+
+### Loewe Score with missing parts
 ```{r summary_Afatinib_myLoewe, fig.width = 10 }
 ggAfa <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Afatinib", type ="row")
 ggAfa
 ```
+
+### ZIP score
 ```{r summary_Afatinib_ZIP, fig.width = 10 }
 ggAfa <- plotSummaryLoewe(dfLoewe = dfZIP, "Afatinib", type ="row")
 ggAfa
 ```
 
+## Venetoclax
+### Loewe
 ```{r summary_Venetoclax_Loewe, fig.width = 10 }
 ggVen <- plotSummaryLoewe(dfLoewe = dfLoewe, "Venetoclax", type ="row")
 ggVen
 ```
+
+### Loewe Score with missing parts
 ```{r summary_Venetoclax_myLoewe, fig.width = 10 }
 ggVen <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Venetoclax", type ="row")
 ggVen
 ```
+
+### ZIP score
 ```{r summary_Venetoclax_ZIP, fig.width = 10 }
 ggVen <- plotSummaryLoewe(dfLoewe = dfZIP, "Venetoclax", type ="row")
 ggVen
 ```
 
+## Idelalisib
+### Loewe
 ```{r summary_Idelalisib_Loewe, fig.height = 8 }
 ggIdel <- plotSummaryLoewe(dfLoewe = dfLoewe, "Idelalisib")
 ggIdel
 ```
+### Loewe Score with missing parts
 ```{r summary_Idelalisib_myLoewe, fig.height = 8 }
 ggIdel <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Idelalisib")
 ggIdel
 ```
+### ZIP score
 ```{r summary_Idelalisib_ZIP, fig.height = 8 }
 ggIdel <- plotSummaryLoewe(dfLoewe = dfZIP, "Idelalisib")
 ggIdel
