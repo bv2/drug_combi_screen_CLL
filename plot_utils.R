@@ -701,7 +701,8 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
           scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
           theme_bw(base_size = 16) + coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
-                plot.title = element_text(colour =  "black"))
+                plot.title = element_text(colour =  "black")) +
+          guides(fill = guide_colorbar(title = paste0(CItype,"\n score")))
         print(gg)
         dfres <- rbind(dfres,cbind(df_score, PatientID = pat, BDrugName = dr, CDrugName = "Ibrutinib"))
       }
@@ -753,7 +754,7 @@ plotSummaryCI10x10 <- function(dfCI10x10, dr, summarize_by = "mean", type = "col
     theme_bw(base_size = 16) + coord_fixed() +
     theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
           plot.title = element_text(colour =  "black")) +
-    guides(fill = guide_colorbar(title = paste0(nameCI,"\n score")))
+    guides(fill = guide_colorbar(title = paste0(nameCI," \n score")))
   
   if(type == "row"){
     gg_medScore <- gg_medScore + theme(axis.text.y = element_blank(),
