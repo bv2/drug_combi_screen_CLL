@@ -306,12 +306,7 @@ plotTiles10x10(df10x10, "Venetoclax", "P0347")
 plotTiles10x10(df10x10, "Venetoclax", "P0445")
 ```
 
-# Assesing synergy using SynergyFinder
-https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/
-```{r}
-library("synergyfinder")
-```
-
+# Visulaization of response curves 
 ## Single-Dose Response Curves
 ```{r}
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
@@ -352,103 +347,46 @@ ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", con
        aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
 ```
-The drug curves of Ibrutinib alone are strange and only in the last concentration something happens. Thereby the Loewe synergy cannot be well assessed as no conc with similar effect as Ibrutinib and lowest conc of drug B can be found.
 
+# Assesing synergy using SynergyFinder
+To assess synergy we use the ZIP score proposed (here)[https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4759128/] and implemented in the R package synergyfinder. The results are overall similar to using the Loewe score. Note that the implementation of the Loewe score provided in the package uses the maximal effect of single compounds at the additive concentration value if the Loewe equation cannot be solved resulting in artifacts with strong antagonism, when the dose-response relationship differs between two drugs. These cases are should be replaced by the NA or based on the value that is closest to solving the Loewe equation instead if the Loewe score was used.
 
-## Loewe score
-```{r Loewe_surface, fig.width=10, warning= FALSE}
-dfLoewe <- plotCITiles(df10x10, "Loewe")
+```{r}
+library("synergyfinder")
 ```
 
-Notes: Changinng the concentration of Navitoclax by a factor of 10 leads to a different Loewe synergy, the ZIP index remains the same. Dose response curves and matrices as obtained from PlotDoseResponse are not affected  by the change.
-This is due to calculating the synergy as response - maximal response on sum of both concentration in one of the two single fits, if the Loewe equation cannot be colved. MyLoewe takes for these cases  NA. For details see synergyfinder_problems1/2. (altenrative: the clostest value in 0 to 100 to fulfil this equation, can produce high synergy at high concentrations, where effect is clost to 100)
-
-## Loewe Score with missing parts
-```{r myLoewe_surface}
-source("~/Documents/CLL/MarinaDrugComb/DrugCombi_Code4Ms/myLoewe.R")
-dfmyLoewe <- plotCITiles(df10x10, "myLoewe", cutoff = 100)
-```
-
-## ZIP score
 ```{r ZIP_surface}
 dfZIP <- plotCITiles(df10x10, "ZIP")
 ```
 
 # Summarize scores
 ## Navitoclax
-### Loewe
-```{r summary_Navitoclax_Loewe, fig.width = 10 }
-# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
-ggNavi <- plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
-ggNavi
-```
 
-### Loewe Score with missing parts
-```{r summary_Navitoclax_myLoewe, fig.width = 10 }
-# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
-ggNavi <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Navitoclax", type = "row")
-ggNavi
-```
-
-### ZIP score
 ```{r summary_Navitoclax_ZIP, fig.width = 10 }
 # Strong antagonism for low concentrations? Is ZIP more stable for small effects?
-ggNavi <- plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
+ggNavi <- plotSummaryCI10x10(dfZIP, "Navitoclax", type = "row")
 ggNavi
 ```
 
 ## Afatinib
-### Loewe
-```{r summary_Afatinib_Loewe, fig.width = 10 }
-ggAfa <- plotSummaryLoewe(dfLoewe = dfLoewe, "Afatinib", type ="row")
-ggAfa
-```
 
-### Loewe Score with missing parts
-```{r summary_Afatinib_myLoewe, fig.width = 10 }
-ggAfa <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Afatinib", type ="row")
-ggAfa
-```
-
-### ZIP score
 ```{r summary_Afatinib_ZIP, fig.width = 10 }
-ggAfa <- plotSummaryLoewe(dfLoewe = dfZIP, "Afatinib", type ="row")
+ggAfa <- plotSummaryCI10x10(dfZIP, "Afatinib", type ="row")
 ggAfa
 ```
 
 ## Venetoclax
-### Loewe
-```{r summary_Venetoclax_Loewe, fig.width = 10 }
-ggVen <- plotSummaryLoewe(dfLoewe = dfLoewe, "Venetoclax", type ="row")
-ggVen
-```
-
-### Loewe Score with missing parts
-```{r summary_Venetoclax_myLoewe, fig.width = 10 }
-ggVen <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Venetoclax", type ="row")
-ggVen
-```
 
 ### ZIP score
 ```{r summary_Venetoclax_ZIP, fig.width = 10 }
-ggVen <- plotSummaryLoewe(dfLoewe = dfZIP, "Venetoclax", type ="row")
+ggVen <- plotSummaryCI10x10(dfZIP, "Venetoclax", type ="row")
 ggVen
 ```
 
 ## Idelalisib
-### Loewe
-```{r summary_Idelalisib_Loewe, fig.height = 8 }
-ggIdel <- plotSummaryLoewe(dfLoewe = dfLoewe, "Idelalisib")
-ggIdel
-```
-### Loewe Score with missing parts
-```{r summary_Idelalisib_myLoewe, fig.height = 8 }
-ggIdel <- plotSummaryLoewe(dfLoewe = dfmyLoewe, "Idelalisib")
-ggIdel
-```
-### ZIP score
+
 ```{r summary_Idelalisib_ZIP, fig.height = 8 }
-ggIdel <- plotSummaryLoewe(dfLoewe = dfZIP, "Idelalisib")
+ggIdel <- plotSummaryCI10x10(dfZIP, "Idelalisib")
 ggIdel
 ```
 
@@ -456,149 +394,3 @@ ggIdel
 ```{r}
 sessionInfo()
 ```
-
-# Understanding scores and strong antagonism
-How to adjust for differences in concentrations? D
-ifferent factors lead to different results. Why?
-```{r}
-df10x10mod <- df10x10
-df10x10mod$concBvalue <- 10*df10x10mod$concBvalue  # makes concentration ranges similar to Ibrutinib for Navitoclax
-dfLoewemod <- plotCITiles(df10x10mod, "Loewe")
-
-plotSummaryLoewe(dfLoewe = dfLoewemod, "Navitoclax", type = "row")
-plotSummaryLoewe(dfLoewe = dfLoewe, "Navitoclax", type = "row")
-```
-
-ZIP model is not influenced by this.
-```{r}
-dfZIPmod <- plotCITiles(df10x10mod, "ZIP")
-plotSummaryLoewe(dfLoewe = dfZIPmod, "Navitoclax", type = "row")
-plotSummaryLoewe(dfLoewe = dfZIP, "Navitoclax", type = "row")
-```
-
-<!-- # Comparison -->
-<!-- Compare to other scores -->
-<!-- ```{r score_comparison, fig.height=5} -->
-<!-- Bdrs <- unique(df10x10$BaseDrugName) -->
-<!-- Bdrs  <- Bdrs[Bdrs != "DM"] -->
-<!-- df_scores <- lapply(c("Loewe", "ZIP", "HSA", "Bliss"), function(CI_type) { -->
-<!--  lapply(Bdrs, function(dr){ -->
-<!--     data <- filter(df10x10, BaseDrugName == dr, CombiDrug == "Ibrutinib") -->
-<!--    lapply(unique(data$PatientID), function(pat){ -->
-<!--      dfpat <- filter(data, PatientID == pat) %>% -->
-<!--   select(Replicate = PatientID, DrugRow = BaseDrugName, DrugCol = CombiDrug, -->
-<!--          ConcRow = concBvalue, ConcCol = concCvalue, Response = normalizedValue, -->
-<!--          Row = base_conc, Col = combi_conc) %>% -->
-<!--   mutate(BlockID = 1, ConcRowUnit = "μM", ConcColUnit = "μM")   %>% # only one drug-drug combination -->
-<!--   mutate(Row = sub("c", "", Row), -->
-<!--          Col = sub("c", "", Col), -->
-<!--          Response = 100 * Response) # need percentage -->
-<!-- dfpat <- ReshapeData(dfpat, data.type = "viability") -->
-<!-- dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))] -->
-<!-- synergy.score <- CalculateSynergy(dfpat,method = CI_type, correction = TRUE, Emin = 0, Emax = 100, nan.handle = "LL4") -->
-<!-- data.frame(pat=pat, drB =dr, score = mean(synergy.score$scores[[1]]), method = CI_type) -->
-<!--    }) %>% bind_rows() -->
-<!--  }) %>% bind_rows() -->
-<!-- }) %>% bind_rows() -->
-
-<!-- # compare to effect based synergies (needs running CombiSynergy.Rmd first) -->
-<!-- if(file.exists(file.path(outdir, paste0("MarinaCombiSyns_",today,".RData")))){ -->
-<!-- load("out/MarinaCombiSyns_",today,".RData") -->
-<!-- dfEffectBased <- dfsynSummaryConc %>% filter(CDrugAbrv == "Ibrutinib (100nM)") %>% -->
-<!--   select(BDrugName, addModelSImean, hsaCImean, PatientID)%>% -->
-<!--   gather(key = "method", value="score", -c("PatientID","BDrugName")) %>% rename(pat = PatientID, drB = BDrugName) %>% filter(pat %in% df_scores$pat, drB %in% df_scores$drB) -->
-
-<!-- df_scores %<>% mutate(method = paste0(method, "_10x10")) -->
-<!-- df4plot <- rbind(df_scores,dfEffectBased) -->
-<!-- } else df4plot <- df_scores -->
-
-<!-- df4plot %>% ggplot(aes(x=pat, y=score, fill=pat)) +  -->
-<!--   facet_grid(method~drB, scales = "free") + geom_bar(stat="identity") +  -->
-<!--   theme(axis.text.x = element_blank()) + -->
-<!--   guides(fill =F) + scale_fill_manual(values=patcol) +  -->
-<!--   geom_hline(yintercept = 0) -->
-<!-- ``` -->
-
-
-
-<!-- # Isobologram - Analysis -->
-<!-- Alternative to Synergyfinder -->
-<!-- ```{r} -->
-<!-- library(BIGL) -->
-<!-- evalIsobols <- FALSE -->
-<!-- ``` -->
-
-<!-- ```{r isobologram_Venetoclax, eval = evalIsobols} -->
-<!-- data <- filter(df10x10, BaseDrugName == "Venetoclax") %>% -->
-<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
-<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
-<!-- summary(marginalFit) -->
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "loewe", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "hsa", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-<!-- ``` -->
-
-<!-- ```{r isobologram_Navitoclax, eval = evalIsobols} -->
-<!-- data <- filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib") %>% -->
-<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
-<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
-<!-- summary(marginalFit) -->
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "loewe", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "hsa", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-<!-- ``` -->
-
-<!-- ```{r isobologram_Afatinib, eval = evalIsobols} -->
-<!-- data <- filter(df10x10, BaseDrugName == "Afatinib") %>% -->
-<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
-<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
-<!-- summary(marginalFit) -->
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "loewe", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "hsa", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-<!-- ``` -->
-
-<!-- ```{r isobologram_Idelalisib, eval = evalIsobols} -->
-<!-- data <- filter(df10x10, BaseDrugName == "Idelalisib") %>% -->
-<!--   select(experiment = PatientID, cpd1 = BaseDrugName, cpd2 = CombiDrug, d1 = concBvalue, d2 = concCvalue, effect = normalizedValue) -->
-<!-- marginalFit <- fitMarginals(data, method = "optim", names = c("cpd1", "cpd2")) -->
-<!-- summary(marginalFit) -->
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "loewe", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-
-<!-- rs <- fitSurface(data, marginalFit, -->
-<!--                  null_model = "hsa", -->
-<!--                  B.CP = 50, statistic = "meanR", parallel = FALSE) -->
-<!-- isobologram(rs) -->
-<!-- summary(rs) -->
-<!-- ``` -->
-
-
-

@@ -21,14 +21,10 @@ library(tidyverse)
 
 # Load data
 ```{r}
-# load("/Volumes/huber/projects/nct/cll/ProcessedData/DrugScreens/Marina_CombiScreen/df10x10_180914.Rdata")
 load("out/df10x10_180914.Rdata")
 ```
 
 Select one patient and drug as example.
-Problematic are: Afatinib - P0050, Idelalisib - P0050 as no good fit for Ibrutinib or Idelalisib response curve (flat).
-Use a criterion on goodness of fit for single curves to include patient? When not limiting the maximal effect of loglogistic fit to 100, more cases become problematic, e.g. P0016 for Navitoclax.
-
 ```{r}
 pat <- params$pat
 dr <- params$dr
@@ -189,7 +185,7 @@ This can work for cases where single drugs have already reached their maximal va
 
 # ZIP Index
 The ZIP Index fits dose response curves for each row and column of the response matrix.
-For each concentration pairs it considers the average effect from the row- and columnwise fit. Here the minimum of the function is given by the fitted values of the other drug alone, maximum is set to 0 (using L.4?). This is compared to the effect expected under the Bliss model from the single drug effect given by the single drug dose response fits (using LL.4?). $E_B +E_C - E_B*E_C/100 = 100*(1- V_B*V_C)$ (E fitted effect values from 0 to 100, V viability form 0 to 1)
+For each concentration pairs it considers the average effect from the row- and columnwise fit. Here the minimum of the function is given by the fitted values of the other drug alone, maximum is set to 0 (using L.4). This is compared to the effect expected under the Bliss model from the single drug effect given by the single drug dose response fits (using LL.4). $E_B +E_C - E_B*E_C/100 = 100*(1- V_B*V_C)$ (E fitted effect values from 0 to 100, V viability form 0 to 1)
 
 ```{r}
 ggplot(filter(df),

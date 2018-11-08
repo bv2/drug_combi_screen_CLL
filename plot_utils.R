@@ -689,30 +689,20 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
         dfpat$dose.response.mats[[1]] <- dfpat$dose.response.mats[[1]][order(as.numeric(rownames(dfpat$dose.response.mats[[1]]))), order(as.numeric(colnames(dfpat$dose.response.mats[[1]])))]
         # print(PlotDoseResponse(dfpat))
         
-        if(CItype != "myLoewe"){
+      
         synergy.score <- CalculateSynergy(dfpat,method = CItype, correction = TRUE)
         df_score <- melt(synergy.score$scores[[1]], varnames = c("concB", "concC"), value.name = "score") %>%
           filter(concB !=0 & concC!=0)
-        } else {
-        synergy.score <- myLoewe(dfpat$dose.response.mats[[1]])
-        df_score <- melt(synergy.score$scores, varnames = c("concB", "concC"), value.name = "score") %>%
-          filter(concB !=0 & concC!=0)
-        }
-        # dfsynCon <- filter(df_score, score>0) %>% select(concB,concC)
-        # print(paste(dr,":", paste0(unique(dfsynCon$concB), collapse = ", ")))
-        # print(paste("Ibrutnib :", paste0(unique(dfsynCon$concC), collapse = ", ")))
         
         gg <- ggplot(df_score, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = score)) +
           geom_tile() +
           ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
-          # ggtitle(paste(pat, ": average score (", CItype, ") ", round(mean(df_score$score),3), sep="")) +
           ggtitle(pat) +
-          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = ifelse(CItype == "myLoewe",0,0)) +
+          scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0) +
           theme_bw(base_size = 16) + coord_fixed() +
           theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
                 plot.title = element_text(colour =  "black"))
         print(gg)
-        # PlotSynergy(synergy.score, type = "2D", save.file = TRUE)
         dfres <- rbind(dfres,cbind(df_score, PatientID = pat, BDrugName = dr, CDrugName = "Ibrutinib"))
       }
     }
@@ -721,49 +711,49 @@ plotCITiles <- function(df, CItype, cutoff = Inf){
 }
 
 
-plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
+plotSummaryCI10x10 <- function(dfCI10x10, dr, summarize_by = "mean", type = "col", nameCI = "ZIP") {
   stopifnot(type %in% c("row", "col"))
   
-  dfLoewe_dr <- filter(dfLoewe, BDrugName == dr) 
+  dfCI10x10_dr <- filter(dfCI10x10, BDrugName == dr) 
   
-  orderConc <- as.numeric(factor(rank(dfLoewe_dr$concB)))
-  dfLoewe_dr$concBrank <- as.numeric(orderConc)
-  orderConcC <- as.numeric(factor(rank(dfLoewe_dr$concC)))
-  dfLoewe_dr$concCrank <- as.numeric(orderConcC)
+  orderConc <- as.numeric(factor(rank(dfCI10x10_dr$concB)))
+  dfCI10x10_dr$concBrank <- as.numeric(orderConc)
+  orderConcC <- as.numeric(factor(rank(dfCI10x10_dr$concC)))
+  dfCI10x10_dr$concCrank <- as.numeric(orderConcC)
   # smooth along B and C concentrations
-  dfLoewe_dr$sumScore <- sapply(1:nrow(dfLoewe_dr), function(i){
-    df <- filter(dfLoewe_dr, abs(concBrank-dfLoewe_dr$concBrank[i])<= 1,
-                 abs(concC - dfLoewe_dr$concC[i])<= 1) # take mean across two neighboring distr in both direction
+  dfCI10x10_dr$sumScore <- sapply(1:nrow(dfCI10x10_dr), function(i){
+    df <- filter(dfCI10x10_dr, abs(concBrank-dfCI10x10_dr$concBrank[i])<= 1,
+                 abs(concC - dfCI10x10_dr$concC[i])<= 1) # take mean across two neighboring distr in both direction
     mean(df$score, na.rm=TRUE)
   })
     
   
-  # if(length(unique(dfLoewe_dr$concB)) < 15){
-  #   dfLoewe_dr %<>% group_by(concB, concC) %>%
+  # if(length(unique(dfCI10x10_dr$concB)) < 15){
+  #   dfCI10x10_dr %<>% group_by(concB, concC) %>%
   #     summarize(sumScore = switch(summarize_by,
   #                                mean  = mean(score),
   #                                median  = median(score)))
   # } else {
-  #   orderConc <- as.numeric(factor(rank(dfLoewe_dr$concB)))
-  #   dfLoewe_dr$concBrank <- as.numeric(orderConc)
-  #   orderConcC <- as.numeric(factor(rank(dfLoewe_dr$concC)))
-  #   dfLoewe_dr$concCrank <- as.numeric(orderConcC)
+  #   orderConc <- as.numeric(factor(rank(dfCI10x10_dr$concB)))
+  #   dfCI10x10_dr$concBrank <- as.numeric(orderConc)
+  #   orderConcC <- as.numeric(factor(rank(dfCI10x10_dr$concC)))
+  #   dfCI10x10_dr$concCrank <- as.numeric(orderConcC)
   #   # smooth along B concentration to reconcile different conc from pats
-  #   dfLoewe_dr$sumScore <- sapply(1:nrow(dfLoewe_dr), function(i){
-  #     df <- filter(dfLoewe_dr, abs(concBrank-dfLoewe_dr$concBrank[i])<= 2,
-  #                  concC == dfLoewe_dr$concC[i]) # take mean across two neighboring distr in both direction
+  #   dfCI10x10_dr$sumScore <- sapply(1:nrow(dfCI10x10_dr), function(i){
+  #     df <- filter(dfCI10x10_dr, abs(concBrank-dfCI10x10_dr$concBrank[i])<= 2,
+  #                  concC == dfCI10x10_dr$concC[i]) # take mean across two neighboring distr in both direction
   #     mean(df$score)
   #   })
   # }
   
-  gg_medScore <- ggplot(dfLoewe_dr, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = sumScore)) +
+  gg_medScore <- ggplot(dfCI10x10_dr, aes(x = factor(round(concB*1000,1)), y=factor(round(concC*1000,1)), fill = sumScore)) +
     geom_tile() +
     ylab("Ibrutinib (nM)") + xlab(paste(dr, "(nM)")) +
     scale_fill_gradient2(low= "blue", high="red", mid="white", midpoint = 0, breaks = seq(-100,100,20)) +
     theme_bw(base_size = 16) + coord_fixed() +
     theme(axis.text.x = element_text(angle=90, vjust=1, hjust=1),
           plot.title = element_text(colour =  "black")) +
-    guides(fill = guide_colorbar(title = paste0("Loewe \n score")))
+    guides(fill = guide_colorbar(title = paste0(nameCI,"\n score")))
   
   if(type == "row"){
     gg_medScore <- gg_medScore + theme(axis.text.y = element_blank(),
@@ -774,7 +764,7 @@ plotSummaryLoewe <- function(dfLoewe, dr, summarize_by = "mean", type = "col") {
                                        legend.margin=margin(0,0,0,0),
                                        legend.box.margin=margin(0,0,-7,0))  + 
       guides(fill = guide_colorbar(title.position="left", title.hjust = 1, title.vjust = 1,
-                                   title = paste0("Loewe  score")))
+                                   title = paste0(nameCI, " score")))
   }
   
 
