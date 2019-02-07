@@ -598,13 +598,14 @@ plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
   
   df4plot <- filter(df, BDrugName==drB)
   range = c(0, th)
-  
+  df4plot %<>% mutate(label = factor(paste0(round(BDrugConc * 1000,1), " (nM)"),
+                                     levels = paste0(sort(unique(round(BDrugConc * 1000,1))), " (nM)")))
   gg <- ggplot(df4plot, aes(y=viabC, x=viabBC, color=PatientID))+
     geom_point(alpha=0.7)+
     geom_hline(aes(yintercept=1), colour="grey", linetype="dashed") +
     geom_vline(aes(xintercept=1), colour="grey", linetype="dashed") +
     scale_color_manual(values=patcol) +
-    facet_wrap(~BDrugConcId  , ncol=5) +
+    facet_wrap(~label  , ncol=5) +
     geom_abline(intercept = 0, slope = 1, colour="black", linetype="solid") +
     # ggtitle(paste("Base drug (A):", drB, "Combination drug (B):", drC)) + 
     coord_fixed() + scale_x_continuous(limits=range) + 
