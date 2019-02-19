@@ -41,8 +41,9 @@ target_expr <- melt(t(target_expr), varnames = c("PatID", "gene"))
 
 ```{r expr_Afatinibtargets}
 ggplot(target_expr, aes(x= gene, y= value)) +
-    geom_point() + ylab("Normalized gene expression") +
-    theme_bw(base_size = 16) + theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1))
+    ggbeeswarm::geom_beeswarm(cex=0.15, size=1) + ylab("Normalized gene expression") +
+    theme_bw(base_size = 16) +
+    theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1))
 ```
 
 ```{r}
