@@ -285,6 +285,14 @@ names(anno_colors) <- colnames(dfanno)
          annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV)
 ```
 
+columns-wise Z-score
+```{r}
+mat <- apply(effectB_mat_av,2,scale)
+rownames(mat)  <- rownames(effectB_mat_av)
+ pheatmap(mat, na_col="gray", show_rownames = FALSE, show_colnames = TRUE,
+         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,
+         annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV)
+```
 
 # Single correlation values
 ```{r}
