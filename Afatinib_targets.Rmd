@@ -1,0 +1,51 @@
+---
+title: "Afatinib targets"
+author: "Britta Velten"
+date: "2/19/2019"
+output:
+   BiocStyle::html_document:
+     toc: true
+params: 
+    today: 180914
+---
+
+Investiage RNAseq data for potential Afatinib targets.
+```{r}
+library(BloodCancerMultiOmics2017)
+library(DESeq2)
+library(reshape2)
+library(tidyverse)
+```
+
+```{r}
+outdir <- "out"
+today <- params$today
+figdir = paste0("figs", today, "/figuresAfatinib/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
+```
+
+
+```{r}
+load(file.path(outdir, paste0("OmicsData",today,".RData")))
+vst <- varianceStabilizingTransformation(eData)
+pot_targets <- c("EGFR", "ERBB2", "ERBB3", "ERBB4", "GAK", "BLK",
+                 "IRAK1", "EPHA6", "HIPK4", "PHKG2", "MAPK9",
+                 "MAPK14", "ABCG2") # list by Sascha
+rownames(vst) <- rowData(eData)$symbol
+colnames(vst) <- colData(eData)$PatID
+target_expr <- vst[pot_targets]
+target_expr <- assay(target_expr) 
+target_expr <- melt(t(target_expr), varnames = c("PatID", "gene"))
+```
+
+```{r expr_Afatinibtargets}
+ggplot(target_expr, aes(x= gene, y= value)) +
+    geom_point() + ylab("Normalized gene expression") +
+    theme_bw(base_size = 16) + theme(axis.text.x = element_text(angle=60, hjust=1, vjust=1))
+```
+
+```{r}
+sessionInfo()
+```
+
