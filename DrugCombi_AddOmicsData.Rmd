@@ -59,7 +59,7 @@ load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 
 ```{r}
 # Patient metadata
-load("/Volumes/huber/projects/nct/cll/ProcessedData/patAnnotation/patmeta_180730.RData")
+load("/Volumes/huber/projects/nct/cll/ProcessedData/patAnnotation/patmeta_190515.RData")
 patMeta %<>% rename(PatientID = Patient.ID)
 IGHV <- select(patMeta, IGHV.status, PatientID)
 
