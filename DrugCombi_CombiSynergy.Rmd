@@ -171,7 +171,7 @@ pheatmap(t(SImat), breaks = seq(0, max(SImat), length.out = 100), main = "SI",
 
 dfsynSummaryConcPat %>%
   select(CDrugAbrv,BDrugName, addModelSImed) %>% filter(CDrugAbrv !="Duvelisib") %>%
-  rename(SI = addModelSImed) %>% arrange(-SI)
+  dplyr::rename(SI = addModelSImed) %>% arrange(-SI)
 ```
 
 
@@ -189,6 +189,7 @@ dfsigSI <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
             viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add))  %>%
   ungroup()
 dfsigSI$pvaladj <- p.adjust(dfsigSI$pval, "BH")
+nrow(dfsigSI)
 arrange(dfsigSI, pvaladj)
 
 dfsigSI_summary <- filter(dfsigSI, pvaladj <= alpha)%>%
@@ -265,6 +266,7 @@ dfsigHSA <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
             effBCmean = mean(effBC), effmaxBCmean = mean(pmax(effB, effC)))   %>%
   ungroup()
 dfsigHSA$pvaladj <- p.adjust(dfsigHSA$pval, "BH")
+nrow(dfsigSI)
 arrange(dfsigHSA, pvaladj)
 filter(dfsigHSA, pvaladj<0.05)%>% arrange(pvaladj)
 # filter(dfsigHSA, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)

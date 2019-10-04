@@ -249,8 +249,9 @@ corCombi <- corCombiIdel + corCombiIbru
 diag(corCombi) <- 1
 
 pheatmap(corCombi, cluster_rows = FALSE, cluster_cols =FALSE,
-         show_rownames = FALSE, color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
-               breaks=seq(-0.2,1,0.01), fontsize = 14)
+         show_rownames = FALSE, fontsize = 14,
+                          breaks = seq(-1,1,0.01),
+                 color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200))
          # main="Correlation of viability values across patients for Ibrutinib (lower triangle) and CAL-101 (upper triangle)")
 ```
 
@@ -270,6 +271,7 @@ df_pvals_combi_vs_muts <- group_by(df_combis_vs_muts, CDrugAbrv, CDrugNameLong, 
             mean.diff = ifelse(n_muts<3 | n_wt<3, NA,diff(t.test(effectBC ~ status, var.equal= TRUE)$estimate))) %>%
   filter(!is.na(pval)) %>% ungroup()
 df_pvals_combi_vs_muts$pval.adj <-  p.adjust(df_pvals_combi_vs_muts$pval, method="BH")
+nrow(df_pvals_combi_vs_muts)
 hist(df_pvals_combi_vs_muts$pval)
 ```
 

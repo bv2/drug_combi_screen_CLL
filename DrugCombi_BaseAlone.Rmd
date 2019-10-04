@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180914
+    today: 191004
 ---
 
 #Introduction
@@ -94,6 +94,7 @@ df_pvals_effectB_vs_muts <- group_by(df_effectB_vs_muts, BDrugName, BDrugID, BDr
   summarize(pval = t.test(effectB ~ status, var.equal= TRUE)$p.value,
             mean.diff = diff(t.test(effectB ~ status, var.equal= TRUE)$estimate))
 df_pvals_effectB_vs_muts$pval.adj <- p.adjust(df_pvals_effectB_vs_muts$pval, method="BH")
+nrow(df_pvals_effectB_vs_muts)
 hist(df_pvals_effectB_vs_muts$pval)
 ```
 
@@ -212,7 +213,7 @@ pheatmap(cor(effectB_mat, use = "complete.obs"),
 
 
 Average over concentrations
-```{r heatmap_base_drug_drug_av, fig.height=7}
+```{r heatmap_base_drug_drug_av, fig.height=7, fig.width=6.1}
 effectB_mat_av <- df_effectB %>% 
   select(BDrugName, PatientID, effectB)  %>%
   group_by(BDrugName,PatientID) %>%
@@ -222,7 +223,8 @@ effectB_mat_av <- df_effectB %>%
   column_to_rownames("PatientID") %>%
   as.matrix()
 pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treeheight_row = 10,
-         treeheight_col = 10, fontsize = 18 )
+         treeheight_col = 10, fontsize = 14, breaks = seq(-1,1,0.01),
+         color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200))
 ```
 
 ##PatientxDrugs
@@ -277,12 +279,19 @@ names(cols_mut) <- c("wt", "mut")
 anno_colors <- lapply(colnames(dfanno), function(x) cols_mut)
 names(anno_colors) <- colnames(dfanno)
 
+ # pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="euclidean",
+ #         clustering_distance_cols = "correlation",
+ #         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+ #         breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
+ #         treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,
+ #         annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV)
  pheatmap(effectB_mat_av, na_col="gray", clustering_distance_rows="euclidean",
          clustering_distance_cols = "correlation",
-         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
-         breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
+    show_rownames = FALSE, show_colnames = TRUE,
          treeheight_row = 10, treeheight_col = 10, annotation_row = dfanno, annotation_colors =anno_colors,
-         annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV)
+         annotation_legend = FALSE, fontsize = 12,  clustering_callback = callbackIGHV,
+         breaks = seq(0, filter_th, 0.01),
+         color = colorRampPalette((brewer.pal(n=7, name = "PRGn")))(200)[1:140])
 ```
 
 columns-wise Z-score

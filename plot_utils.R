@@ -232,7 +232,8 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
     corPat <- cor(t(effectBPlusC_mat), use="complete.obs")
     pheatmap(corPat, annotation_row = dfanno_IGHV, annotation_colors =list(IGHV=cols_IGHV),
              show_rownames = FALSE, show_colnames = FALSE, annotation_legend = FALSE,
-             treeheight_col = 12, treeheight_row = 12)
+             treeheight_col = 12, treeheight_row = 12,
+             color = colorRampPalette((brewer.pal(n=7, name = "YlOrRd")))(100))
     
   } else if(type == "PatDrug"){
     #rotate tree on patients by IGHV status
@@ -250,8 +251,9 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
     }
       pheatmap(effectBPlusC_mat, na_col="gray", clustering_distance_rows=dist2userows,
                clustering_distance_cols = dist2usecols,
-               color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
-               breaks=seq(0,filter_th,0.01), show_rownames = FALSE, show_colnames = TRUE,
+               breaks = seq(0, filter_th, 0.01),
+               color = colorRampPalette((brewer.pal(n=7, name = "PRGn")))(200)[1:140],
+               show_rownames = FALSE, show_colnames = TRUE,
                treeheight_row = 15, treeheight_col = 15, annotation_row = dfanno, annotation_colors =anno_colors,
                annotation_legend = FALSE, fontsize_col=fsz,
                clustering_callback = callbackIGHV)
@@ -263,17 +265,18 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
         corDrug <- cor(mat, use="complete.obs")
         hmMCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
                clustering_distance_cols = dist2usecols,
-               color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
+               breaks = seq(-1,1,0.01),
+               color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200),
                treeheight_row = 0, treeheight_col = 0, #main = "M-CLL",
-               breaks=seq(-0.2,1,0.01),
                legend=FALSE, show_colnames = FALSE, show_rownames = FALSE,  fontsize = 16)
         mat <- effectBPlusC_mat[patsUCLL, ]
         corDrug <- cor(mat, use="complete.obs")
         hmUCLL <- pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
                  clustering_distance_cols = dist2usecols,
-                 color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(120),
+                 breaks = seq(-1,1,0.01),
+                 color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200),
                  treeheight_row = 0, treeheight_col = 0, #main = "U-CLL",
-                 breaks=seq(-0.2,1,0.01), show_colnames = FALSE, show_rownames = FALSE,
+                 show_colnames = FALSE, show_rownames = FALSE,
                  fontsize = 16, legend=FALSE)
         grid.arrange(hmMCLL$gtable, hmUCLL$gtable, ncol =2)
         
@@ -281,7 +284,8 @@ plotHeatmap <- function(df4ana, dfMuts, CDrugAbrv4plot, type=c("PatPat", "PatDru
         corDrug <- cor(effectBPlusC_mat, use="complete.obs")
         pheatmap(corDrug, na_col="gray", clustering_distance_rows=dist2userows,
                  clustering_distance_cols = dist2usecols,
-                 color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(140),
+                 breaks = seq(-1,1,0.01),
+                 color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200),
                  treeheight_row = 15, treeheight_col = 15, fontsize = 12)
       }
       
