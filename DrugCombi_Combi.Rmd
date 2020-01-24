@@ -41,7 +41,7 @@ source("plot_utils.R")
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 today <- params$today
-figdir = paste0("figs", today, "/figuresCombi/")
+figdir = paste0("figs_revision", today, "/figuresCombi/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
@@ -312,6 +312,20 @@ ggplot(df4plot, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
   facet_wrap(CDrugAbrv~mutation, ncol=2)+ guides(col=FALSE) +
   theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
   xlab("Viability effect") 
+```
+
+Same plot for combinations with Ibrutinib (100nM) only
+```{r volcanoe_combi_facet_ibru100, fig.height=2.2, fig.width=7}
+# show volanoes only for combintaiton drugs with at least one signifiacant hit and only one Ibrutinib conc (100 has more samples)
+df4plot <- filter(df_pvals_max, CDrugAbrv %in% df_calls$CDrugAbrv, mutation %in% df_calls$mutation, CDrugAbrv == "Ibrutinib (100nM)")
+ggplot(df4plot, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
+  geom_point(alpha=0.7) +
+  ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")), label.size= NA, min.segment.length = 0, fill = NA) +
+  scale_color_manual(values= c("deeppink", "navy")) +
+  facet_wrap(~mutation, ncol=2)+ guides(col=FALSE) +
+  theme_bw() + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab("Viability effect") +
+    theme(strip.background = element_blank(), strip.text = element_blank())
 ```
 
 Alterntive layout with TP53 and IGHV
