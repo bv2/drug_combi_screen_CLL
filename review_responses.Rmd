@@ -1,0 +1,97 @@
+---
+title: "Further explorations in response to reviewers"
+author: "Britta Velten"
+date: "1/24/2020"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+params: 
+    today: 180914
+---
+
+
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r, echo=F}
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+library(tidyverse)
+source("plot_utils.R")
+```
+
+```{r, echo=F}
+# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+outdir <- "out"
+today <- params$today
+figdir = paste0("figs_revision", today, "/figuresCombi/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
+```
+
+
+# Data Import:
+Load processed Data from DrugCombi_QC.Rmd and DrugCombi_AddOmics (moelcular data on patient samples)
+```{r}
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("OmicsData",today,".RData")))
+load(paste0(outdir,"/MarinaCombiSyns_",today,".RData"))
+```
+
+```{r}
+# discard outliers for further analyses, only use averaged values for replicates
+df4ana <- df4anaAvreplicatesRmOutliers
+rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
+```
+
+# R406 + Afatinib
+## Significance testing across patients
+```{r}
+alpha <- 0.05
+```
+
+Paired t-test across all patients samples (separately for each concentration)
+
+```{r}
+dfsigSI <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
+  summarize(pval = t.test(viabBC, viabBC_add, paired =TRUE, alternative= "less")$p.value,
+            effect = t.test(viabBC, viabBC_add, paired = TRUE, alternative= "less")$estimate,
+            viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add))  %>%
+  ungroup()
+dfsigSI$pvaladj <- p.adjust(dfsigSI$pval, "BH")
+nrow(dfsigSI)
+arrange(dfsigSI, pvaladj)
+
+dfsigSI_summary <- filter(dfsigSI, pvaladj <= alpha)%>%
+  group_by(BDrugName, CDrugAbrv) %>%
+  summarize(nConc = length(BDrugConcId))
+# filter(dfsigSI, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+
+dfsigSI_summary %>% group_by(BDrugName) %>% summarize(nSynPartners = n()) %>% arrange(-nSynPartners)
+```
+
+## Similarity of R406 and Afatinbi
+```{r, fig.width=10}
+cowplot::plot_grid(
+# plotResponseCurves(df =dfsyn, drC = "R406", drB = "Ibrutinib", annoSI = F),
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "R406", annoSI = F),
+# plotResponseCurves(df =dfsyn, drC = "Afatinib", drB = "Ibrutinib", annoSI = F),
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", annoSI = F)
+)
+```
+
