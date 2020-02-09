@@ -13,7 +13,7 @@ params:
 
 ```{r, echo=F}
 library(knitr )
-knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, cache = T)
 ```
 
 ```{r, echo=F}
@@ -137,8 +137,18 @@ filter(df_pvals_combi_vs_muts, pval.adj < 0.05)
 ```{r fig.height=7, fig.width=6}
 alpha <- 0.05
 # select most significant concentration
-df_pvals_max <- df_pvals_combi_vs_muts %>% group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
+df_pvals_max <- df_pvals_combi_vs_muts %>%
+    group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
   summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
+
+# summarise combi drug concentration (for ibrutinib)
+df_pvals_max %<>% ungroup()
+df_pvals_max %<>% mutate( concC = sub("Ibrutinib ", "", CDrugAbrv), CDrugAbrv = sub(" \\(10+nM\\)", "", CDrugAbrv))
+df_pvals_max <- df_pvals_max %>% 
+    group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%  
+    summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = concC[idx])
+df_pvals_max %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
+
 df_pvals_max %<>% mutate(sig = pval<alpha, col = mean.diff>0)
 
 df_pvals_max %>% filter(mutation != "NOTCH1") %>%
@@ -149,4 +159,17 @@ ggplot(aes(x=mean.diff, y=-log10(pval), col=col)) +
   xlab ("Viability effect")+ ylab("- log p-value (unadjusted)")
   theme(strip.background = element_blank(),
         strip.text = element_text(size=14))
+
 ```
+
+```{r fig.height=7, fig.width=12}
+df_pvals_max %<>% mutate(inhibitor = ifelse(BDrugName == "KU-60019", "ATM inhibitor", "CHK inhibitor"))
+  ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval), col=col)) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, combi, "")),  label.size= NA, fill = NA, size=4) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_grid(inhibitor~mutation)+ guides(col=FALSE) +
+  theme_bw(base_size = 14) + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab ("Viability effect")+ ylab("- log p-value (unadjusted)")
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=14))
+```
+
