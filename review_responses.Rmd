@@ -1,0 +1,175 @@
+---
+title: "Further explorations in response to reviewers"
+author: "Britta Velten"
+date: "1/24/2020"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
+params: 
+    today: 180914
+---
+
+
+```{r, echo=F}
+library(knitr )
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, cache = T)
+```
+
+```{r, echo=F}
+library(RColorBrewer)
+library(Biobase)
+library(abind)
+library(grid)
+library(gtable)
+library(reshape2)
+library(gridExtra)
+require(pracma)
+library(reshape2)
+library(pheatmap)
+library(magrittr)
+library(lattice)
+library(tidyverse)
+source("plot_utils.R")
+```
+
+```{r, echo=F}
+# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
+# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
+datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+outdir <- "out"
+today <- params$today
+figdir = paste0("figs_revision", today, "/figuresCombi/")
+if(!dir.exists(figdir)) dir.create(figdir)
+knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
+```
+
+
+# Data Import:
+Load processed Data from DrugCombi_QC.Rmd and DrugCombi_AddOmics (moelcular data on patient samples)
+```{r}
+load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("OmicsData",today,".RData")))
+load(paste0(outdir,"/MarinaCombiSyns_",today,".RData"))
+```
+
+```{r}
+# discard outliers for further analyses, only use averaged values for replicates
+df4ana <- df4anaAvreplicatesRmOutliers
+rm(df4anaAvreplicatesRmOutliers, df4anaAvreplicates)
+```
+
+# R406 + Afatinib
+## Significance testing across patients
+```{r}
+alpha <- 0.05
+```
+
+Paired t-test across all patients samples (separately for each concentration)
+
+```{r}
+dfsigSI <- dfsyn %>% group_by(BDrugName, CDrugAbrv, CDrugName, BDrugConcId) %>%
+  summarize(pval = t.test(viabBC, viabBC_add, paired =TRUE, alternative= "less")$p.value,
+            effect = t.test(viabBC, viabBC_add, paired = TRUE, alternative= "less")$estimate,
+            viabBCmean = mean(viabBC), viabBC_add = mean(viabBC_add))  %>%
+  ungroup()
+dfsigSI$pvaladj <- p.adjust(dfsigSI$pval, "BH")
+nrow(dfsigSI)
+arrange(dfsigSI, pvaladj)
+
+dfsigSI_summary <- filter(dfsigSI, pvaladj <= alpha)%>%
+  group_by(BDrugName, CDrugAbrv) %>%
+  summarize(nConc = length(BDrugConcId))
+# filter(dfsigSI, BDrugName == CDrugName,  pvaladj<0.05) %>% arrange(pvaladj)
+
+dfsigSI_summary %>% group_by(BDrugName) %>% summarize(nSynPartners = n()) %>% arrange(-nSynPartners)
+```
+
+## Similarity of R406 and Afatinbi
+```{r, fig.width=10}
+cowplot::plot_grid(
+# plotResponseCurves(df =dfsyn, drC = "R406", drB = "Ibrutinib", annoSI = F),
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "R406", annoSI = F),
+# plotResponseCurves(df =dfsyn, drC = "Afatinib", drB = "Ibrutinib", annoSI = F),
+plotResponseCurves(df =dfsyn, drC = "Ibrutinib (100nM)", drB = "Afatinib", annoSI = F)
+)
+```
+
+
+
+# Test for assciations of combi effect with Ibrutinib to mutations
+Focus on ATM ("KU-60019") and CHEK inhibitors ("AZD7762", "PF 477736", "LY2603618")
+```{r}
+# dfMuts %<>% select(PatientID, SF3B1, ATM, NOTCH1, del17p13, TP53)
+dfMuts %<>% select(PatientID, SF3B1, ATM, NOTCH1)
+
+# some summary on mutations
+dfMuts %>% select(-PatientID) %>% colSums()
+sum((dfMuts$del17p13 + dfMuts$TP53) == 2)
+
+df_combis_vs_muts <- left_join(df4ana,
+                                gather(dfMuts, key="mutation", value="status", -PatientID), by="PatientID")
+df_combis_vs_muts %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
+
+#check number of samples
+df_combis_vs_muts %>% filter(mutation == "NOTCH1", status == 1, BDrugName == "Afatinib", BDrugConcId == "c1") %>% select(CDrugAbrv) %>% table
+df_combis_vs_muts %>% filter(mutation == "ATM", status == 1, BDrugName == "Afatinib", BDrugConcId == "c1") %>% select(CDrugAbrv) %>% table
+df_combis_vs_muts %>% filter(mutation == "SF3B1", status == 1, BDrugName == "Afatinib", BDrugConcId == "c1") %>% select(CDrugAbrv) %>% table
+
+# test each drug-drug pairs for each base concentration and mutation
+# only inclduing durg-drug combinations with at least 3 samples from mutated and unmutated group
+df_pvals_combi_vs_muts <- group_by(df_combis_vs_muts, CDrugAbrv, CDrugNameLong, CDrugID, CDrugName, CDrugConc,
+                                      BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation, combi) %>%
+    # filter(CDrugAbrv == "Ibrutinib (100nM)") %>%
+    filter(BDrugName %in% c("AZD7762", "KU-60019", "PF 477736", "LY2603618")) %>%
+  summarize(n_muts= sum(status==1), n_wt =sum(status==0),
+            pval = ifelse(n_muts<3 | n_wt<3, NA,t.test(effectBC ~ status, var.equal= TRUE)$p.value),
+            mean.diff = ifelse(n_muts<3 | n_wt<3, NA,diff(t.test(effectBC ~ status, var.equal= TRUE)$estimate))) %>%
+  filter(!is.na(pval)) %>% ungroup()
+df_pvals_combi_vs_muts$pval.adj <-  p.adjust(df_pvals_combi_vs_muts$pval, method="BH")
+
+
+filter(df_pvals_combi_vs_muts, pval < 0.05) %>% select(mutation, CDrugAbrv, BDrugName, BDrugConc, pval,pval.adj, combi) 
+filter(df_pvals_combi_vs_muts, pval.adj < 0.05) 
+
+```
+
+```{r fig.height=7, fig.width=6}
+alpha <- 0.05
+# select most significant concentration
+df_pvals_max <- df_pvals_combi_vs_muts %>%
+    group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%
+  summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
+
+# summarise combi drug concentration (for ibrutinib)
+df_pvals_max %<>% ungroup()
+df_pvals_max %<>% mutate( concC = sub("Ibrutinib ", "", CDrugAbrv), CDrugAbrv = sub(" \\(10+nM\\)", "", CDrugAbrv))
+df_pvals_max <- df_pvals_max %>% 
+    group_by(CDrugAbrv, BDrugName, BDrugID, mutation, combi) %>%  
+    summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = concC[idx])
+df_pvals_max %<>% mutate(combi =paste(CDrugAbrv, BDrugName, sep="+"))
+
+df_pvals_max %<>% mutate(sig = pval<alpha, col = mean.diff>0)
+
+df_pvals_max %>% filter(mutation != "NOTCH1") %>%
+ggplot(aes(x=mean.diff, y=-log10(pval), col=col)) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, CDrugAbrv, "")),  label.size= NA, fill = NA, size=4) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_grid(BDrugName~mutation)+ guides(col=FALSE) +
+  theme_bw(base_size = 14) + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab ("Viability effect")+ ylab("- log p-value (unadjusted)")
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=14))
+
+```
+
+```{r fig.height=7, fig.width=12}
+df_pvals_max %<>% mutate(inhibitor = ifelse(BDrugName == "KU-60019", "ATM inhibitor", "CHK inhibitor"))
+  ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval), col=col)) +
+  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, combi, "")),  label.size= NA, fill = NA, size=4) +
+  scale_color_manual(values= c("deeppink", "navy")) + facet_grid(inhibitor~mutation)+ guides(col=FALSE) +
+  theme_bw(base_size = 14) + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab ("Viability effect")+ ylab("- log p-value (unadjusted)")
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size=14))
+```
+
