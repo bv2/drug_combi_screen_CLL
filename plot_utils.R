@@ -600,7 +600,7 @@ plotScattter <- function(df, drB, drC, th = filter_th){
 # dotplots base compound effect vs measured combination effect
 plotScattterVsCombi <- function(df, drB, drC, th = filter_th){
   
-  df4plot <- filter(df, BDrugName==drB)
+  df4plot <- filter(df, BDrugName==drB, CDrugAbrv == drC)
   range = c(0, th)
   df4plot %<>% mutate(label = factor(paste0(round(BDrugConc * 1000,1), " (nM)"),
                                      levels = paste0(sort(unique(round(BDrugConc * 1000,1))), " (nM)")))

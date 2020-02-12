@@ -7,7 +7,7 @@ output:
     toc: true
     toc_depth: 3
 params: 
-    today: 180914
+    today: 191004
 ---
 #Introduction
 
@@ -41,7 +41,7 @@ source("plot_utils.R")
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 today <- params$today
-figdir = paste0("figs_revision", today, "/figuresCombi/")
+figdir = paste0("figs", today, "/figuresCombi/")
 if(!dir.exists(figdir)) dir.create(figdir)
 knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 ```
