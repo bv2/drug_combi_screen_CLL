@@ -1,4 +1,4 @@
-This repostitory contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al.
+This repository contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al.
 
 The raw data files for this analysis are stored in `/g/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen`. 
 
