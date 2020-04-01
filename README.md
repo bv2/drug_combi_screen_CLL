@@ -1,13 +1,13 @@
-This repository contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al.
+This repository contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al. *Survey of ex vivo drug combination effects in chronic lymphocytic leukemia reveals synergistic drug effects and genetic dependencies*.
 
 The raw data files for this analysis are stored in `/g/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen`. 
 
-The processed data objects after running the preprocessing scripts can be found in `/g/huber/projects/nct/cll/ProcessedData/DrugScreens/Marina_CombiScreen`.
+The processed data objects after running the preprocessing scripts can be found in `/g/huber/projects/nct/cll/ProcessedData/DrugScreens/Marina_CombiScreen` and are used for the visualization in the [Shiny App](http://mozi.embl.de/public/combiScreen/).
 
 The analysis contains the following parts:
 
 *A. Pre-processing*
-- `DrugCombi_DataImport.Rmd`: This script takes the raw data files as input and generates data object containing the normalized viability values for each well as well as a data frame combining the single effect of each drug and the effects of each drug-drug combination.
+- `DrugCombi_DataImport.Rmd`: This script takes the raw data files as input and generates data object containing the normalized viability values for each well. Furthermore, it generates a data frame combining the single effect of each drug and the effects of each drug-drug combination.
 - `DrugCombi_QC.Rmd`: Some quality control on the data (plate plots, reproducibility between replicates, etc.). Replicates are collapsed to their average values and a filtering threshold is applied on the normalized viability values to remove outliers.
 - `DrugCombi_AddOmicsData.Rmd`: Check available omics data for the patients included in the combination screen and show an overview of genetic heterogeneity.
 
@@ -16,7 +16,8 @@ The analysis contains the following parts:
 
 *C. Analysis of drug combination effect*
 - `DrugCombi_Combi.Rmd`: Analyse effect of drug combinations, associations to most frequent mutations and heatmaps.
-- `DrugCombi_CombiSynegy.Rmd`: Investigate synergisitc effects
+- `DrugCombi_CombiSynegy.Rmd`: Investigate synergistic effects
 - `DrugCombi_10x10.Rmd`: Analysis of 10x10 screens
 
-The script `plot_utils.R` contains some functions for plottings. `runAll.R` runs the whole analysis starting from the raw data by rendering all the .Rmd files above.
+The script `plot_utils.R` contains some helper functions for recurrent plots. The script `runAll.R` runs the whole analysis starting from the raw data by rendering all the .Rmd files above.
+ The script `Afatinib_targets.Rmd` investigates the expression values of potential tagets of Afatinib.

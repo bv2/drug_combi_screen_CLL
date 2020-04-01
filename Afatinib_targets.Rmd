@@ -9,7 +9,7 @@ params:
     today: 180914
 ---
 
-Investiage RNAseq data for potential Afatinib targets.
+Investigate RNAseq data for potential Afatinib targets.
 ```{r}
 library(BloodCancerMultiOmics2017)
 library(DESeq2)

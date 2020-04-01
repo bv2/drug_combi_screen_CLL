@@ -1,3 +1,5 @@
+# This file contains helper function used for plotting in the analysis of the combination screen.
+
 # function to extract legend from a ggplot object
 get_legend<-function(myggplot){
   tmp <- ggplot_gtable(ggplot_build(myggplot))

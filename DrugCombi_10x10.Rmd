@@ -41,8 +41,6 @@ source("plot_utils.R")
 ```
 
 ```{r}
-# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
-# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir = "out"
 today <- params$today
@@ -61,7 +59,8 @@ datadir10x10 <- file.path(datadir,"10x10")
 # Get plate set-up
 From Prtocol get set-up of the plate (i.e. which substance in which concentration in which well)
 ```{r}
-FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2))
+FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,
+                                                "Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2))
 
 # get set-up for base/test drugs
   tableIdxBase <- which(FileSetUp10x10=="A", arr.ind = T)[1,]
@@ -91,12 +90,14 @@ FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,"Protokoll 10 x 10 
   # get concentration values per row of plate
   conc_combi_df <- tibble(WellLetter = FileSetUp10x10[tableIdxIbr[1]+0:15,tableIdxIbr[2]],
                           combi_conc = FileSetUp10x10[tableIdxIbr[1]+(0:15),tableIdxIbr[2]+25])
-  conc_combi_df %<>% mutate(combi_conc = ifelse(combi_conc == "Concentration (Synergie-Substanz)", NA, combi_conc))
+  conc_combi_df %<>% mutate(combi_conc = ifelse(combi_conc == "Concentration (Synergie-Substanz)",
+                                                NA, combi_conc))
 
   SetUpIbr %<>% left_join(conc_combi_df, by = "WellLetter")
   
   # set conc for DM to NA
-  SetUpIbr %<>% mutate(combi_conc = ifelse(!is.na(combi), ifelse(combi=="DM", NA, combi_conc), combi_conc))
+  SetUpIbr %<>% mutate(combi_conc = ifelse(!is.na(combi),
+                                           ifelse(combi=="DM", NA, combi_conc), combi_conc))
 
   #fill in NAs with a conc value by Ibrutinib
   SetUpIbr %<>% mutate(combi = ifelse(combi_conc %in% paste0("c", 1:10), "Ibrutinib", combi))
@@ -133,7 +134,7 @@ import10x10Data <- function(filename, SetUp){
   }
     
   
-  #table from excel file (ignore meta data about screen)
+  # table from excel file (ignore meta data about screen)
   tableIdx <- which(data=="<>", arr.ind = T)
   stopifnot(nrow(tableIdx)==1)
   plateValues <- data[tableIdx[1]+1:11,tableIdx[2]+1:24]
@@ -205,7 +206,7 @@ df10x10 %<>% mutate(BaseDrugName = ifelse(BaseDrug == "CAL101", "Idelalisib",
 ```
 
 ## QC
-Check whether the concentratino in the xls files are plausible: They are different in each experiment, consistent would be 2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0.
+Check whether the concentration in the xls files are plausible: They are different in each experiment, consistent would be 2µM for navitoclax and venetoclax and 20µM for afatinib, idelalisib and ibrutinib in 2-fold serial dilutions, ending at 0.
 ```{r}
 conc_BCL2 <- sapply(0:9, function(i) 2 * 0.5^i)
 conc_BCL2[10] <- 0
@@ -239,7 +240,8 @@ filter(df10x10,  CombiDrug == "Ibrutinib", BaseDrugName!="DM") %>%
 ```{r}
 # data overview
 df10x10 %>% group_by(BaseDrugName, CombiDrug) %>%
-  summarize(nPats = length(unique(PatientID)), pats = paste(unique(PatientID), collapse =", "))
+  summarize(nPats = length(unique(PatientID)),
+            pats = paste(unique(PatientID), collapse =", "))
 
 df10x10 %>% filter(base_conc== "c1") %>%
   group_by(BaseDrugName, concBvalue) %>%
@@ -310,11 +312,13 @@ plotTiles10x10(df10x10, "Venetoclax", "P0445")
 ## Single-Dose Response Curves
 ```{r}
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~concCvalue) +scale_x_log10() 
 
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
-       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() 
 ```
 
@@ -322,13 +326,16 @@ ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
 ```{r}
 # B drug curves
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concCvalue==0),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
 ggplot(filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concCvalue==0),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
 ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", concCvalue==0),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
 ```
 
@@ -336,15 +343,18 @@ ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", con
 ```{r}
 # C Drug curves
 ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concBvalue==0),
-       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
 
 ggplot(filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concBvalue==0),
-       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
 
 ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", concBvalue==0),
-       aes(x = (concCvalue), y= normalizedValue, col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+       aes(x = (concCvalue), y= normalizedValue, col = PatientID,
+           shape = PatientID %in% c("P0369", "P0309"))) +
   geom_point() + facet_wrap(~(concBvalue*1000)) +scale_x_log10() +geom_line()
 ```
 
@@ -363,7 +373,6 @@ dfZIP <- plotCITiles(df10x10, "ZIP")
 ## Navitoclax
 
 ```{r summary_Navitoclax_ZIP, fig.width = 10 }
-# Strong antagonism for low concentrations? Is ZIP more stable for small effects?
 ggNavi <- plotSummaryCI10x10(dfZIP, "Navitoclax", type = "row")
 ggNavi
 ```

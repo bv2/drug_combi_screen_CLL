@@ -12,7 +12,7 @@ params:
 
 #Introduction
 
-This file analyses the data from the combination screen for combination with DMSO. (Effect of base drug alone)
+This file analyses the data from the combination screen for combination of library drugs with DMSO. (Effect of base (library) drug alone)
 
 ```{r, echo=F}
 library(knitr )
@@ -40,8 +40,6 @@ options(stringsAsFactors = FALSE)
 ```
 
 ```{r}
-# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
-# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 today <- params$today
@@ -52,7 +50,7 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 
 
 # Data Import:
-Load processed Data from DrugCombi_QC.Rmd and DrugCombi_AddOmics (moelcular data on patient samples)
+Load processed Data from `DrugCombi_QC.Rmd` and `DrugCombi_AddOmics.Rmd` (moelcular data on patient samples)
 ```{r}
 load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
 load(file.path(outdir, paste0("OmicsData",today,".RData")))
@@ -88,8 +86,10 @@ nrow(df_effectB)
 # Test for assciations of base effect to mutations
 ```{r}
 df_effectB_vs_muts <- left_join(df_effectB,
-                                gather(dfMuts4testing, key="mutation", value="status", -PatientID), by="PatientID")
-df_effectB_vs_muts <- df_effectB_vs_muts[!duplicated(df_effectB_vs_muts),] #remove duplicates, as info is contained in each combi durg
+                                gather(dfMuts4testing, key="mutation", value="status", -PatientID),
+                                by="PatientID")
+#remove duplicates, as info is contained in each combi drug
+df_effectB_vs_muts <- df_effectB_vs_muts[!duplicated(df_effectB_vs_muts),] 
 df_pvals_effectB_vs_muts <- group_by(df_effectB_vs_muts, BDrugName, BDrugID, BDrugConc, BDrugConcId, mutation) %>%
   summarize(pval = t.test(effectB ~ status, var.equal= TRUE)$p.value,
             mean.diff = diff(t.test(effectB ~ status, var.equal= TRUE)$estimate))
@@ -112,18 +112,24 @@ alpha <- 0.05
 ## Volcanoe plot
 ```{r volcanoe_base, fig.height=4, fig.width=8}
 # take only most significant concentration for plotting (FDR control is on level of single concentrations)
-df_pvals_max <- df_pvals_effectB_vs_muts %>% group_by(BDrugName, BDrugID, mutation) %>%
-  summarize(idx = which.min(pval), pval = pval[idx], pval.adj= pval.adj[idx], mean.diff = mean.diff[idx], conc = BDrugConcId[idx])
+df_pvals_max <- df_pvals_effectB_vs_muts %>%
+  group_by(BDrugName, BDrugID, mutation) %>%
+  summarize(idx = which.min(pval), pval = pval[idx],
+            pval.adj= pval.adj[idx], mean.diff = mean.diff[idx],
+            conc = BDrugConcId[idx])
 df_pvals_max %<>% mutate(sig = pval.adj<alpha, col = mean.diff>0)
 
 ggplot(df_pvals_max, aes(x=mean.diff, y=-log10(pval.adj), col=col)) +
-  geom_point(alpha=0.7) + ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")),  label.size= NA, fill = NA, size=4.5) +
-  scale_color_manual(values= c("deeppink", "navy")) + facet_wrap(~mutation)+ guides(col=FALSE) +
-  theme_bw(base_size = 14) + geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
-  xlab ("Viability effect")+
+  geom_point(alpha=0.7) +
+  ggrepel::geom_label_repel(aes(label=ifelse(sig, BDrugName, "")),
+                            label.size= NA, fill = NA, size=4.5) +
+  scale_color_manual(values= c("deeppink", "navy")) +
+  facet_wrap(~mutation)+ guides(col=FALSE) +
+  theme_bw(base_size = 14) +
+  geom_hline(yintercept = -log10(alpha), lty= "dashed", alpha=0.3) +
+  xlab ("Viability effect") +
   theme(strip.background = element_blank(),
         strip.text = element_text(size=14))
-
 ```
 
 ## List of significant pharmacogenomic interactions
@@ -141,7 +147,7 @@ paste(unique(df_signIGHV$BDrugName), collapse = ", ")
 ```
 
 ## Boxplots and Curves
-Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at an FDR of 1%.
+Draw boxplots for TP53 and IGHV including all drugs that have significant concentrations at the specified FDR threshold.
 ```{r boxplot_base_TP53, fig.width=8, fig.height=3}
 plotBaseBoxplots(df_effectB_vs_muts, unique(df_signTP53$BDrugName), gene = "TP53")
 ```
@@ -150,7 +156,8 @@ plotBaseResponseCurves(df_effectB_vs_muts, unique(df_signTP53$BDrugName), gene =
 ```
 
 ```{r, boxplot_base_IGHV, fig.width=8, fig.height=7.5}
-selDrugs <- c("Ibrutinib", "R406", "Spebrutinib", "Dasatinib", "AZD7762", "PF 477736", "Navitoclax", "Venetoclax")
+selDrugs <- c("Ibrutinib", "R406", "Spebrutinib", "Dasatinib",
+              "AZD7762", "PF 477736", "Navitoclax", "Venetoclax")
 stopifnot(all(selDrugs %in% df_signIGHV$BDrugName))
 plotBaseBoxplots(df_effectB_vs_muts, selDrugs, gene = "IGHV")
 ```
@@ -175,20 +182,26 @@ length(unique(dfsig_effB_vs_meth$BDrugName))
 # plot signifcant base drugs
 sel_drugs <- dfsig_effB_vs_meth %>% select(BDrugName)
 
-#plot curves
-df4plot <- df_base_vs_meth %>% filter(BDrugName %in% sel_drugs$BDrugName, !is.na(Methylation_Cluster)) %>% 
+# plot curves
+df4plot <- df_base_vs_meth %>%
+  filter(BDrugName %in% sel_drugs$BDrugName, !is.na(Methylation_Cluster)) %>% 
     mutate(BDrugConcId = factor(BDrugConcId, levels = paste0("c", 5:1))) %>%
     mutate(BDrugConc = factor(round(1000*BDrugConc, 0)))
   
   gg <- ggplot(df4plot, aes(x=BDrugConc, y=effectB, group=Methylation_Cluster)) +
     stat_summary(fun.data = "mean_se", aes(col=factor(Methylation_Cluster)), geom="line") +
     facet_wrap(~ BDrugName, ncol=3, scales = "free_x") +
-    stat_summary(fun.data = "mean_se",aes(col=factor(Methylation_Cluster)), geom="errorbar", width=0.2, fun.args = list(mult =2)) +
-    ggpubr::stat_compare_means(method = "t.test", aes(group = Methylation_Cluster, x = BDrugConc, label =  ..p.signif..), hide.ns = TRUE, label.y = 1.3) +
-    guides(col = guide_legend(title="Methylation Cluster"))+ xlab("Concentration (nM)") +ylab("viability")+theme_bw(base_size = 14) +
+    stat_summary(fun.data = "mean_se", aes(col=factor(Methylation_Cluster)),
+                 geom="errorbar", width=0.2, fun.args = list(mult =2)) +
+    ggpubr::stat_compare_means(method = "t.test", aes(group = Methylation_Cluster, x = BDrugConc,
+                                                      label =  ..p.signif..),
+                               hide.ns = TRUE, label.y = 1.3) +
+    guides(col = guide_legend(title="Methylation Cluster")) +
+    xlab("Concentration (nM)") + ylab("viability")+theme_bw(base_size = 14) +
     theme(strip.background = element_blank(),
           axis.text.x = element_text(angle=90, vjust=1, hjust =1)) +
-    scale_color_manual(values= c("LP" = "navy", "IP" = "orange", "HP"="darkred")) + ylim(c(0,1.4))
+    scale_color_manual(values= c("LP" = "navy", "IP" = "orange", "HP"="darkred")) +
+    ylim(c(0,1.4))
   
   gg
 ```
@@ -227,7 +240,7 @@ pheatmap(cor(effectB_mat_av, use = "complete.obs"), show_rownames = FALSE,treehe
          color = colorRampPalette(rev(brewer.pal(n=7, name = "RdBu")))(200))
 ```
 
-##PatientxDrugs
+## Patient x Drugs
 ```{r heatmap_base_patient_drug}
 # outlying values cut off at 1.4
 effectB_mat[is.na(effectB_mat)] <- 1.4
@@ -308,8 +321,8 @@ rownames(mat)  <- rownames(effectB_mat_av)
 # navitoclax - venetoclax
 cor(as.numeric(effectB_mat[,grep("Navitoclax", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("Venetoclax", colnames(effectB_mat))]))
 
-cor(as.numeric(effectB_mat[,grep("YM155", colnames(effectB_mat))]), as.numeric(effectB_mat[,grep("SNS-032", colnames(effectB_mat))]))
-
+cor(as.numeric(effectB_mat[,grep("YM155", colnames(effectB_mat))]),
+    as.numeric(effectB_mat[,grep("SNS-032", colnames(effectB_mat))]))
 ```
 
 #SessionInfo

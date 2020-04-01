@@ -1,4 +1,5 @@
-# start from a new session, requires connection to the server
+# This file reproduces the whole analysis starting from the raw data by rendering the Rmds.
+# start from a new session, requires connection to the server where the raw data is stored
 library(knitr)
 rm(list=ls())
 today <- "191004"

@@ -36,8 +36,6 @@ options(stringsAsFactors = FALSE)
 ```
 
 ```{r}
-# setwd("~/Documents/cll/MarinaDrugComb/DrugCombi_Code4Ms/")
-# datadir <- "~/Documents/cll/MarinaDrugComb/rawData"
 datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
 outdir <- "out"
 today <- params$today
@@ -122,10 +120,8 @@ dfMuts <- left_join(dfMuts, IGHV, by="PatientID")
 dfMuts %<>% rename(IGHV=IGHV.status)
 dfMuts %<>% mutate(IGHV = ifelse(IGHV=="M",1,0))
 
-# for testing only take thos with more than 5 occurences in the sample cohort
+# for testing only take  only consider clinically most relevant:
 nOcc <- colSums(dfMuts[,colnames(dfMuts) != "PatientID"])
-# dfMuts4testing <- select(dfMuts, PatientID, names(nOcc)[nOcc>=5])
-# only consider clinically most relevant:
 dfMuts4testing <- select(dfMuts, PatientID, TP53, IGHV) 
 dfMuts4testing
 ```
@@ -173,7 +169,8 @@ gg3 <- ggplot(df4plot, aes(x=PatientID, y=1, fill=PatientID))+ geom_tile(col="bl
   guides(fill=FALSE) + 
   xlab("Patient sample") + ylab("")
 
-cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb", rel_heights = c(5,0.35), rel_widths = c(5,1))
+cowplot::plot_grid(gg1,gg3, nrow=2, align = "hv", axis = "lb",
+                   rel_heights = c(5,0.35), rel_widths = c(5,1))
 ```
 
 # Data export
