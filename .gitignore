@@ -1,0 +1,7 @@
+*.html
+*.DS_Store
+.Rhistory
+out
+figs*
+*.csv
+*.xlsx
