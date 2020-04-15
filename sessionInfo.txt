@@ -1,0 +1,80 @@
+R version 3.6.2 (2019-12-12)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.6
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+ [1] grid      parallel  stats4    stats     graphics  grDevices utils     datasets  methods  
+[10] base     
+
+other attached packages:
+ [1] synergyfinder_1.8.0             lattice_0.20-38                
+ [3] pheatmap_1.0.12                 pracma_2.2.5                   
+ [5] gridExtra_2.3                   reshape2_1.4.3                 
+ [7] gtable_0.3.0                    abind_1.4-5                    
+ [9] RColorBrewer_1.1-2              BloodCancerMultiOmics2017_1.4.0
+[11] xlsx_0.6.1                      magrittr_1.5                   
+[13] forcats_0.4.0                   stringr_1.4.0                  
+[15] purrr_0.3.3                     readr_1.3.1                    
+[17] tidyr_1.0.0                     tibble_2.1.3                   
+[19] ggplot2_3.1.0                   tidyverse_1.2.1                
+[21] dplyr_0.8.3                     BiocStyle_2.12.0               
+[23] knitr_1.25                      DESeq2_1.24.0                  
+[25] SummarizedExperiment_1.14.1     DelayedArray_0.10.0            
+[27] BiocParallel_1.18.1             matrixStats_0.55.0             
+[29] Biobase_2.44.0                  GenomicRanges_1.36.1           
+[31] GenomeInfoDb_1.20.0             IRanges_2.18.3                 
+[33] S4Vectors_0.22.1                BiocGenerics_0.30.0            
+
+loaded via a namespace (and not attached):
+  [1] utf8_1.1.4              tidyselect_0.2.5        RSQLite_2.1.2          
+  [4] AnnotationDbi_1.46.1    htmlwidgets_1.5.1       devtools_2.2.1         
+  [7] munsell_0.5.0           codetools_0.2-16        nleqslv_3.3.2          
+ [10] withr_2.1.2             colorspace_1.4-1        rstudioapi_0.10        
+ [13] ggsignif_0.6.0          rJava_0.9-12            labeling_0.3           
+ [16] GenomeInfoDbData_1.2.1  bit64_0.9-7             rprojroot_1.3-2        
+ [19] vctrs_0.2.0             generics_0.0.2          TH.data_1.0-10         
+ [22] xfun_0.10               R6_2.4.0                ggbeeswarm_0.6.0       
+ [25] locfit_1.5-9.1          bitops_1.0-6            assertthat_0.2.1       
+ [28] scales_1.0.0            multcomp_1.4-10         nnet_7.3-12            
+ [31] beeswarm_0.2.3          processx_3.4.1          sandwich_2.5-1         
+ [34] rlang_0.4.1             zeallot_0.1.0           genefilter_1.66.0      
+ [37] splines_3.6.2           lazyeval_0.2.2          acepack_1.4.1          
+ [40] broom_0.5.2             checkmate_1.9.4         BiocManager_1.30.9     
+ [43] yaml_2.2.0              modelr_0.1.5            backports_1.1.5        
+ [46] Hmisc_4.2-0             tools_3.6.2             usethis_1.5.1          
+ [49] bookdown_0.14           gridBase_0.4-7          ellipsis_0.3.0         
+ [52] gplots_3.0.1.1          ggdendro_0.1-20         sessioninfo_1.1.1      
+ [55] Rcpp_1.0.2              plyr_1.8.4              base64enc_0.1-3        
+ [58] zlibbioc_1.30.0         RCurl_1.95-4.12         ps_1.3.0               
+ [61] prettyunits_1.0.2       ggpubr_0.2.3            rpart_4.1-15           
+ [64] cowplot_1.0.0           zoo_1.8-6               haven_2.2.0            
+ [67] ggrepel_0.8.1           cluster_2.1.0           fs_1.3.1               
+ [70] data.table_1.12.6       openxlsx_4.1.3          mvtnorm_1.0-11         
+ [73] pkgload_1.0.2           hms_0.5.2               xlsxjars_0.6.1         
+ [76] evaluate_0.14           xtable_1.8-4            XML_3.98-1.20          
+ [79] rio_0.5.16              readxl_1.3.1            testthat_2.3.0         
+ [82] compiler_3.6.2          maps_3.3.0              KernSmooth_2.23-16     
+ [85] crayon_1.3.4            htmltools_0.4.0         Formula_1.2-3          
+ [88] geneplotter_1.62.0      lubridate_1.7.4         DBI_1.0.0              
+ [91] MASS_7.3-51.4           Matrix_1.2-18           car_3.0-4              
+ [94] cli_1.1.0               gdata_2.18.0            pkgconfig_2.0.3        
+ [97] foreign_0.8-72          xml2_1.2.2              foreach_1.4.7          
+[100] annotate_1.62.0         vipor_0.4.5             ipflasso_0.2           
+[103] XVector_0.24.0          SpatialExtremes_2.0-7.2 drc_3.0-1              
+[106] rvest_0.3.4             callr_3.3.2             digest_0.6.22          
+[109] rmarkdown_1.16          cellranger_1.1.0        htmlTable_1.13.2       
+[112] curl_4.2                gtools_3.8.1            lifecycle_0.1.0        
+[115] nlme_3.1-142            jsonlite_1.6            carData_3.0-2          
+[118] desc_1.2.0              fansi_0.4.0             pillar_1.4.2           
+[121] httr_1.4.1              plotrix_3.7-6           pkgbuild_1.0.6         
+[124] survival_3.1-8          glue_1.3.1              remotes_2.1.0          
+[127] zip_2.0.4               iterators_1.0.12        glmnet_2.0-18          
+[130] bit_1.1-14              stringi_1.4.3           blob_1.2.0             
+[133] caTools_1.17.1.2        latticeExtra_0.6-28     memoise_1.1.0          

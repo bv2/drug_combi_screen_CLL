@@ -1,12 +1,13 @@
 ---
 title: "Afatinib targets"
 author: "Britta Velten"
-date: "2/19/2019"
+date: "15 April 2020"
 output:
-   BiocStyle::html_document:
-     toc: true
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 3
 params: 
-    today: 180914
+    today: 200415
 ---
 
 Investigate RNAseq data for potential Afatinib targets.

@@ -1,13 +1,13 @@
 ---
 title: "CLL drug combinations ex-vivo: Data import and pre-processing"
 author: "Britta Velten"
-date: "30 August 2018"
+date: "15 April 2020"
 output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
 params: 
-    today: 180914
+    today: 200415
 ---
 
 #Introduction
@@ -30,7 +30,8 @@ today <- params$today
 
 
 ```{r}
-datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+datadir <- "data"
+outdir <- "out"
 ```
 
 
@@ -86,13 +87,12 @@ num2id = function(nums) {
 DrugInfoBase[,1] <- num2id(as.vector(DrugInfoBase[,1]))
 
 
-# concentration for Chaetoglobsin is not correct in the table: replace by 7uM 
+# concentration for Chaetoglobsin is not correct in the initial table: replace by 7uM 
+# (the new version of the table should be 7uM here already)
 DrugInfoBase[which(DrugInfoBase$Substance == "Chaetoglobosin A"), grepl("^c", colnames(DrugInfoBase))] <- sapply(0:4, function(i) 7 * 0.25^i)
 
 # complete list of drugs with names and ids
-load(file.path(datadir, "DrugMetaData.RData"))
-DrugInfoAll <- drugs
-rm(drugs)
+DrugInfoAll <- read.csv(file.path(datadir, "DrugMetaData.csv"), row.names = 1)
 ```
 
 ## Read out information on plate setup
@@ -146,7 +146,7 @@ importRawData <- function(filename, SetUp12, SetUpRest){
   ScreenNo <- NameComp[2]
   PatientID <- NameComp[3] 
   CombiDrug <- NameComp[4] # this can be a single drug name (SS1-2) or a combiantion of two A-B (others)
-  #Note for SS-IP this is the sample number, treat differently
+  # Note for SS-IP this is the sample number, treat differently
   CombiDrug <- sub(".xlsx","", CombiDrug)
   
   # Plate ID, time and temperature
@@ -251,16 +251,16 @@ CompleteDF %<>% mutate(CombiDrug = ifelse(CombiDrug=="AVL", "AVL292", CombiDrug)
 # construct df containing info on all combination compounds (constructed manually)
 CombiDrugs <- unique(CompleteDF$CombiDrug)
 CombiDrugs <- CombiDrugs[!is.na(CombiDrugs)]
+# concentration info taken from "overview.xlsx"
+# note: an old version of the table contained values off by 1/10 except for 5nM and 10nM
 DrugInfoCombi <- data.frame(abrv=CombiDrugs, 
                             name=c("DMSO", "Ibrutinib","Ibrutinib",
                                   "AVL", "CAL-101", "R406", "Fludarabine",
                                   "IPI-145", "LGX", "YM155", "Abt-199",
                                   "Pomalidomide", "Afatinib",
                                   "Everolimus"),
-                            conc=c(NA, 0.1, 1, 1,1,1, 1, 1, 1, 0.01, 0.005,1,1,1) # info taken from "Versuche-Patienten-Drugs.xlsx",
-)
-# comment by Marina: Values in table are off by 1/10 except for 5nM and 10nM
-DrugInfoCombi %<>% mutate(conc = ifelse(name %in% c("YM155", "Abt-199"), conc, conc/10))
+                            conc=c(NA, 0.01, 0.1, 0.1,0.1, 0.1, 0.1,
+                                   0.1, 0.1, 0.01, 0.005, 0.1, 0.1, 0.1))
 DrugInfoCombi$id <- sapply(DrugInfoCombi$name, function(n) rownames(DrugInfoAll)[which(DrugInfoAll$SimpleName==n|DrugInfoAll$Substance==n)])
 DrugInfoCombi %<>% mutate(id =ifelse(id == "D0DM", "DM", id))
 
@@ -272,11 +272,13 @@ DrugInfoCombi <-cbind(DrugInfoCombi, drugs[paste0("D_",substr(DrugInfoCombi$id, 
 DrugInfoCombi %<>% mutate(long_name = ifelse(name=="DMSO", "DMSO", long_name))
 rm(drugs)
 
-#check right match
+# check right match
 DrugInfoCombi
 
 # add info to dataframe
-CompleteDF <- left_join(CompleteDF, select(DrugInfoCombi, name, conc, id, long_name, abrv), by = c("CombiDrug" = "abrv"))
+CompleteDF <- left_join(CompleteDF,
+                        select(DrugInfoCombi, name, conc, id, long_name, abrv),
+                        by = c("CombiDrug" = "abrv"))
 CompleteDF <- rename(CompleteDF, CombiDrugName = name, 
                      CombiDrugConc = conc,
                      CombiDrugID = id,
@@ -373,7 +375,7 @@ unique(CompleteDFwoControl$BaseDrugName)
 ```
 
 * 13 combintation partners (incl DMSO), two concentrations for ibrutinib, others only one
-* 54 patients (52 after removing the patients of screen 1)
+* 54 patient samples (52 after removing the samples of screen 1)
 * 33 base drugs (incl. DMSO)
 
 
@@ -381,7 +383,8 @@ unique(CompleteDFwoControl$BaseDrugName)
 # columns re-ordering
 FirstTable <- CompleteDFwoControl
 FirstTable <- FirstTable[order(FirstTable$CombiDrug),
-                       c("CombiDrug", "CombiDrugName", "CombiDrugConc","CombiDrugID", "CombiDrug_longname",
+                       c("CombiDrug", "CombiDrugName", "CombiDrugConc",
+                         "CombiDrugID", "CombiDrug_longname",
                          "BaseDrugName", "BaseDrugID", "BaseDrugConc", "BaseDrugConcID", 
                          "PatientID", "PlateID","WellNo","WellLetter",
                          "normalizedValue", "rawValue",
@@ -417,9 +420,12 @@ mergedTable %<>% rename(effectBC= normalizedValue)
 # later screen will have same letter modulo 8 but are determined by the combiDrug and PatientID
 matchingCols <- c("BaseDrugName","BaseDrugID","BaseDrugConc","BaseDrugConcID", "PatientID", "ScreenDate", "ScreenNo", "repMatchLetter")
 DMSOtable %<>% rename(effectB = normalizedValue) 
-DMSOtable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"), paste(WellLetter, WellNo, sep="_"), NA))
-mergedTable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"),  paste(WellLetter, WellNo, sep="_"), NA))
-mergedTable <- left_join(mergedTable, select(DMSOtable, matchingCols, effectB), by = matchingCols)                    
+DMSOtable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"),
+                                              paste(WellLetter, WellNo, sep="_"), NA))
+mergedTable %<>% mutate(repMatchLetter = ifelse(ScreenNo %in% c("SS1", "SS2"),
+                                                paste(WellLetter, WellNo, sep="_"), NA))
+mergedTable <- left_join(mergedTable, select(DMSOtable, matchingCols, effectB),
+                         by = matchingCols)                    
 
 head(mergedTable)
 stopifnot(nrow(mergedTable) == nrow(drugstable))
@@ -458,8 +464,9 @@ SetUpList <- list(SetUpRest =SetUpRest,
 ```
 
 ```{r}
-if(!dir.exists("out")) dir.create("out")
-save(df4ana, CompleteDF, DrugMetaList, SetUpList, file=paste0("out/MarinaCombiData_",today,".RData"))
+if(!dir.exists(outdir)) dir.create(outdir)
+save(df4ana, CompleteDF, DrugMetaList, SetUpList,
+     file=paste0(outdir, "/CLLCombiData_",today,".RData"))
 ```
 
 * `CompleteDF` contains the raw and normalized values per well/plate/screen

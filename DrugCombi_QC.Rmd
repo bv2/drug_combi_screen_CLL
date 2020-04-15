@@ -1,13 +1,13 @@
 ---
 title: "CLL drug combinations ex-vivo: Quality Control"
 author: "Britta Velten"
-date: "30 August 2018"
+date: "15 April 2020"
 output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
 params: 
-    today: 180914
+    today: 200415
 ---
 
 #Introduction
@@ -39,7 +39,7 @@ library(tidyverse)
 ```
 
 ```{r}
-datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+datadir <- "data"
 outdir = "out"
 today <- params$today
 figdir = paste0("figs", today, "/figuresQC/")
@@ -52,7 +52,7 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 # Data Import 
 Load processed Data from `DrugCombi_DataImport.Rmd`.
 ```{r}
-load(file.path(outdir, paste0("MarinaCombiData_",today,".RData")))
+load(file.path(outdir, paste0("CLLCombiData_",today,".RData")))
 ```
 
 Loaded dataframe from ImportedData:
@@ -395,7 +395,7 @@ Export Data to be used in further down-stream analyses
 
 ```{r}
 save(DrugMetaList,CompleteDF,df4ana,SetUpList, df4anaAvreplicates, patcol, df4anaAvreplicatesRmOutliers,patcol, filter_th,
-     file=paste0(outdir,"/MarinaCombiDataAfterQC_",today,".RData"))
+     file=paste0(outdir,"/CLLCombiDataAfterQC_",today,".RData"))
 ```
 
 Write the dataframe used for further analysis into a csv file.

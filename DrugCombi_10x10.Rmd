@@ -1,18 +1,18 @@
 ---
 title: "CLL drug combinations ex-vivo: 10x10 screens"
 author: "Britta Velten"
-date: "4 September 2018"
+date: "15 April 2020"
 output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
 params: 
-    today: 180914
+    today: 200415
 ---
 
 #Introduction
 
-Takes raw data files for 10x10 screen.
+Takes raw data files for 10x10 screen as input.
 
 ```{r, echo=F}
 library(knitr )
@@ -41,7 +41,7 @@ source("plot_utils.R")
 ```
 
 ```{r}
-datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+datadir <- "data"
 outdir = "out"
 today <- params$today
 figdir = paste0("figs", today, "/figures10x10/")
@@ -51,7 +51,7 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = paste0("figs", today, "/
 
 
 ```{r}
-load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("CLLCombiDataAfterQC_",today,".RData")))
 datadir10x10 <- file.path(datadir,"10x10")
 ```
 
@@ -60,7 +60,7 @@ datadir10x10 <- file.path(datadir,"10x10")
 From Prtocol get set-up of the plate (i.e. which substance in which concentration in which well)
 ```{r}
 FileSetUp10x10 <- as.matrix(read.xlsx(file.path(datadir10x10,
-                                                "Protokoll 10 x 10 Validierung Drugscreen2.xlsx"),2))
+                                                "protocol_10x10_validation.xlsx"),2))
 
 # get set-up for base/test drugs
   tableIdxBase <- which(FileSetUp10x10=="A", arr.ind = T)[1,]
@@ -124,8 +124,8 @@ import10x10Data <- function(filename, SetUp){
   patID <- NameComp[grep("P0",NameComp)] 
   
   # in files named PatientID.... first named drug is second in screen
-  # in files named 10x10 Validierung..... first named drug is second in screen.
-  if(grepl("^10x10 Validierung", filename)){
+  # in files named 10x10-validation..... first named drug is second in screen.
+  if(grepl("^10x10-validation", filename)){
   TestDrugA <- NameComp[3] 
   TestDrugB <- sub(".xlsx","", NameComp[4])
   } else {
@@ -151,8 +151,8 @@ import10x10Data <- function(filename, SetUp){
   
   # fill in test drug names: test drug 1 is first of file name
   df %<>% mutate(base = ifelse(base =="DM", "DM", ifelse(base==1,TestDrugA, TestDrugB)))
-  df %<>% rename(BaseDrug = base)
-  df %<>% rename(CombiDrug = combi)
+  df %<>% dplyr::rename(BaseDrug = base)
+  df %<>% dplyr::rename(CombiDrug = combi)
 
   # normalized by pure DMSO median
   dfDMSO <- filter(df, BaseDrug=="DM" , CombiDrug=="DM")
@@ -181,10 +181,10 @@ import10x10Data <- function(filename, SetUp){
   
   # add true conc values to df
   df %<>% left_join(concValueDf, by = c("CombiDrug" = "drug", "combi_conc" = "concId"))
-  df %<>% rename(concCvalue = concValue)
+  df %<>% dplyr::rename(concCvalue = concValue)
 
   df %<>% left_join(concValueDf, by = c("BaseDrug" = "drug", "base_conc" = "concId"))
-  df %<>% rename(concBvalue = concValue)
+  df %<>% dplyr::rename(concBvalue = concValue)
   df %<>% mutate(PatientID = patID)
 
   return(df)
@@ -192,7 +192,7 @@ import10x10Data <- function(filename, SetUp){
 ```
 
 ```{r}
-allFiles <- setdiff(list.files(file.path(datadir10x10), "*.xlsx"), list.files(file.path(datadir10x10),"Protokoll"))
+allFiles <- setdiff(list.files(file.path(datadir10x10), "*.xlsx"), list.files(file.path(datadir10x10),"protocol"))
 listOfTables <- lapply(allFiles, function(file) import10x10Data(file, SetUp))
 for(l in 1:length(listOfTables)) listOfTables[[l]]$PlateID <- sprintf("10x10PL%03d", l)
 df10x10 <- do.call(rbind,listOfTables)
@@ -325,14 +325,15 @@ ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib"),
 ## Dose Response curves of combination drug
 ```{r}
 # B drug curves
-ggplot(filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concCvalue==0),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
-           shape = PatientID %in% c("P0369", "P0309"))) +
-  geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
-ggplot(filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concCvalue==0),
-       aes(x = (concBvalue), y= normalizedValue, col = PatientID,
-           shape = PatientID %in% c("P0369", "P0309"))) +
-  geom_point() + facet_wrap(~(concCvalue*1000)) +scale_x_log10() +geom_line()
+filter(df10x10, BaseDrugName == "Navitoclax", CombiDrug == "Ibrutinib", concCvalue==0) %>%
+ggplot(aes(x = (concBvalue), y= normalizedValue,
+           col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concCvalue*1000)) + scale_x_log10() + geom_line()
+
+filter(df10x10, BaseDrugName == "Venetoclax", CombiDrug == "Ibrutinib", concCvalue==0) %>%
+ggplot(aes(x = (concBvalue), y= normalizedValue,
+           col = PatientID, shape = PatientID %in% c("P0369", "P0309"))) +
+  geom_point() + facet_wrap(~(concCvalue*1000)) + scale_x_log10() + geom_line()
 ggplot(filter(df10x10, BaseDrugName == "Afatinib", CombiDrug == "Ibrutinib", concCvalue==0),
        aes(x = (concBvalue), y= normalizedValue, col = PatientID,
            shape = PatientID %in% c("P0369", "P0309"))) +

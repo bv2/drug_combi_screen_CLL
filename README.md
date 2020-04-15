@@ -1,8 +1,8 @@
 This repository contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al. *Survey of ex vivo drug combination effects in chronic lymphocytic leukemia reveals synergistic drug effects and genetic dependencies*.
 
-The raw data files for this analysis are stored in `/g/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen`. 
+The raw data files for this analysis are stored in the EMBL-EBI Biostudies repository (accession number XXX).
 
-The processed data objects after running the preprocessing scripts can be found in `/g/huber/projects/nct/cll/ProcessedData/DrugScreens/Marina_CombiScreen` and are used for the visualization in the [Shiny App](http://mozi.embl.de/public/combiScreen/).
+The processed data objects can be reproduced by running the preprocessing scripts and are used for the visualization in the [Shiny App](http://mozi.embl.de/public/combiScreen/).
 
 The analysis contains the following parts:
 
@@ -20,4 +20,6 @@ The analysis contains the following parts:
 - `DrugCombi_10x10.Rmd`: Analysis of 10x10 screens
 
 The script `plot_utils.R` contains some helper functions for recurrent plots. The script `runAll.R` runs the whole analysis starting from the raw data by rendering all the .Rmd files above.
- The script `Afatinib_targets.Rmd` investigates the expression values of potential tagets of Afatinib.
+The script `Afatinib_targets.Rmd` investigates the expression values of potential tagets of Afatinib.
+
+To reproduce the analysis you need to clone the repository and download the data from the EMBL-EBI Biostudies repository into the data directory. Afterwards, the script `runAll.R` can be used to reproduce the full analysis and generate the processed data objects, figures and tables used in the manuscript. The file `sessionInfo.txt` gives details about the package versions that were used to reproduce the analysis. 

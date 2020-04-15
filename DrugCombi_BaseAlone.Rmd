@@ -1,13 +1,13 @@
 ---
 title: "CLL drug combinations ex-vivo: Analyse effect of base drugs alone"
 author: "Britta Velten"
-date: "31 August 2018"
+date: "15 April 2020"
 output:
   BiocStyle::html_document:
     toc: true
     toc_depth: 3
 params: 
-    today: 191004
+    today: 200415
 ---
 
 #Introduction
@@ -40,7 +40,7 @@ options(stringsAsFactors = FALSE)
 ```
 
 ```{r}
-datadir <- "/Volumes/huber/projects/nct/cll/RawData/DrugScreens/Marina_CombiScreen/"
+datadir <- "data"
 outdir <- "out"
 today <- params$today
 figdir = paste0("figs", today, "/figuresBaseAlone/")
@@ -52,7 +52,7 @@ knitr::opts_chunk$set(dev = c("png", "pdf"), fig.path = figdir)
 # Data Import:
 Load processed Data from `DrugCombi_QC.Rmd` and `DrugCombi_AddOmics.Rmd` (moelcular data on patient samples)
 ```{r}
-load(file.path(outdir, paste0("MarinaCombiDataAfterQC_",today,".RData")))
+load(file.path(outdir, paste0("CLLCombiDataAfterQC_",today,".RData")))
 load(file.path(outdir, paste0("OmicsData",today,".RData")))
 ```
 
