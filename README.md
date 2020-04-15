@@ -1,6 +1,6 @@
 This repository contains the code for the analysis of the drug combination screen on CLL from Lukas, Velten et al. *Survey of ex vivo drug combination effects in chronic lymphocytic leukemia reveals synergistic drug effects and genetic dependencies*.
 
-The raw data files for this analysis are stored in the EMBL-EBI Biostudies repository (accession number XXX).
+The raw data files for this analysis are stored in the EMBL-EBI Biostudies repository (accession number S-BSST381).
 
 The processed data objects can be reproduced by running the preprocessing scripts and are used for the visualization in the [Shiny App](http://mozi.embl.de/public/combiScreen/).
 

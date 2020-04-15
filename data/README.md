@@ -1,1 +1,1 @@
-The data used fo the analysis can be downloaded from the EMBL-EBI Biostudies repository.
+The data used for the analysis can be downloaded from the EMBL-EBI Biostudies repository (accession number S-BSST381).
